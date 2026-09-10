@@ -4,6 +4,7 @@ import { api, ApiError } from '/js/api.js';
 import { State } from '/js/state.js';
 import { toast } from '/js/toast.js';
 import { registerServiceWorker, watchConnection } from '/js/offline.js';
+import { enableMagneticButtons } from '/js/motion.js';
 import { mountAvatar, ACCESSORIES, AURA_COLORS, HAIR_STYLES, SHIRT_COLORS } from '/js/avatar.js';
 import { initFlags, getFlag, track, flush } from '/js/analytics.js';
 import { initTheme, setTheme, THEMES } from '/js/theme.js';
@@ -322,6 +323,7 @@ function main() {
   mountAvatar(dom.defaultAvatar, { name: t('setup.defaultName') }, 'default');
   selectCharacter(setup.characterMode);
 
+  enableMagneticButtons();
   dom.startBtn.addEventListener('click', startGame);
   dom.dailyBtn.addEventListener('click', startDaily);
 

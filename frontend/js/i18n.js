@@ -57,11 +57,11 @@ const EN = {
     scholarHint: 'Rarer words, no extra guess',
   },
   theme: {
-    system: 'Match system',
+    system: 'System',
     dark: 'Dark',
     light: 'Light',
-    contrast: 'High contrast',
-    colorblind: 'Colourblind friendly',
+    contrast: 'Contrast',
+    colorblind: 'Colourblind',
   },
   hair: {
     short_black: 'Short black', short_brown: 'Short brown', long_blond: 'Long blond',
@@ -228,11 +228,11 @@ const TR = {
     scholarHint: 'Daha nadir kelimeler, ek hak yok',
   },
   theme: {
-    system: 'Sistemle aynı',
+    system: 'Sistem',
     dark: 'Koyu',
     light: 'Açık',
-    contrast: 'Yüksek kontrast',
-    colorblind: 'Renk körlüğüne uygun',
+    contrast: 'Kontrast',
+    colorblind: 'Renk körü',
   },
   hair: {
     short_black: 'Kısa siyah', short_brown: 'Kısa kahverengi', long_blond: 'Uzun sarı',
@@ -399,11 +399,11 @@ const DE = {
     scholarHint: 'Seltenere Wörter, kein Extraversuch',
   },
   theme: {
-    system: 'Wie das System',
+    system: 'System',
     dark: 'Dunkel',
     light: 'Hell',
-    contrast: 'Hoher Kontrast',
-    colorblind: 'Farbenblind-freundlich',
+    contrast: 'Kontrast',
+    colorblind: 'Farbenblind',
   },
   hair: {
     short_black: 'Kurz schwarz', short_brown: 'Kurz braun', long_blond: 'Lang blond',

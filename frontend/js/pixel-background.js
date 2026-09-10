@@ -17,8 +17,10 @@ const canvas = document.getElementById('pixel-bg');
 if (canvas) {
   const ctx = canvas.getContext('2d', { alpha: true });
 
-  const STAR_COUNT = 70;
-  const SQUARE_COUNT = 12;
+  // Sparse on purpose. The masthead is the subject; this is atmosphere
+  // behind it, and a busy field competes with the type.
+  const STAR_COUNT = 44;
+  const SQUARE_COUNT = 7;
   const LETTERS = 'ABCÇDEFGĞHIİJKLMNOÖPRSŞTUÜVYZÄÖÜSS';
   const PALETTE = ['#3CCB7F', '#F4C95D', '#62E6FF', '#8D7CFF', '#FF5DA2'];
   const STAR_COLOR = '#c9d1e2';
@@ -39,14 +41,14 @@ if (canvas) {
       // Speeds are per second, and the loop multiplies by elapsed time, so the
       // scene moves at the same rate on a 30Hz and a 120Hz display.
       vy: rand(5, 14),
-      alpha: rand(0.25, 0.8),
+      alpha: rand(0.18, 0.55),
     }));
     state.squares = Array.from({ length: SQUARE_COUNT }, () => ({
       x: rand(0, state.w), y: rand(0, state.h),
       size: rand(8, 26),
       vx: rand(-9, 9), vy: rand(-6, 6),
       color: PALETTE[Math.floor(rand(0, PALETTE.length))],
-      alpha: rand(0.05, 0.16),
+      alpha: rand(0.04, 0.10),
     }));
     state.letters = [];
   }
@@ -83,7 +85,7 @@ if (canvas) {
   }
 
   function spawnLetter(now) {
-    if (now - state.lastLetterAt < 1100 || state.letters.length >= 6) return;
+    if (now - state.lastLetterAt < 1800 || state.letters.length >= 4) return;
     state.lastLetterAt = now;
     const size = rand(14, 30);
     state.letters.push({
@@ -96,7 +98,7 @@ if (canvas) {
       font: `700 ${Math.round(size)}px "JetBrains Mono", ui-monospace, monospace`,
       vy: rand(24, 48),
       color: PALETTE[Math.floor(rand(0, PALETTE.length))],
-      alpha: rand(0.1, 0.26),
+      alpha: rand(0.07, 0.16),
     });
   }
 

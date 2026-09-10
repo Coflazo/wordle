@@ -3,7 +3,11 @@
 .welcome-shell {
   position: relative;
   display: grid;
-  place-items: center;
+  /* Aligned to the start, not centred. A centred card floating in the middle of
+   * the viewport is the safest possible composition and reads as a template;
+   * anchoring the type to a left edge gives the page a spine. */
+  align-content: center;
+  justify-items: stretch;
   min-height: 100svh;
   padding:
     calc(var(--safe-top) + var(--space-5))
@@ -26,41 +30,67 @@
 .welcome-card {
   position: relative;
   z-index: var(--z-raised);
-  width: min(100%, 46rem);
+  /* An editorial column, not a card. No panel, no glass, no border: the
+   * background is the page, and the type does the work. */
+  width: min(100%, 62rem);
+  margin-inline: auto;
   display: grid;
-  gap: var(--space-5);
-  padding: clamp(var(--space-4), 4vw, var(--space-6));
-  background: color-mix(in srgb, var(--surface) 82%, transparent);
-  backdrop-filter: blur(14px) saturate(140%);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-4);
+  gap: clamp(var(--space-5), 5vh, var(--space-7));
 }
 
-@supports not (backdrop-filter: blur(1px)) {
-  .welcome-card { background: var(--surface); }
-}
-
-.welcome-header { display: grid; gap: var(--space-2); justify-items: start; }
+.welcome-header { display: grid; gap: var(--space-3); justify-items: start; }
 
 .wordmark {
-  font-family: var(--font-heading);
-  font-size: var(--text-3xl);
-  font-weight: var(--weight-black);
-  letter-spacing: var(--tracking-tight);
-  background: linear-gradient(100deg, var(--accent), var(--tile-correct-bg), var(--accent-3));
-  background-clip: text;
-  -webkit-background-clip: text;
-  color: transparent;
-  /* Deliberately a static gradient. The previous version animated
-   * background-position on a background-clip:text element forever, which
-   * cannot be composited — the browser re-rasterizes the glyph mask every
-   * frame, on the landing page, alongside the canvas loop. */
+  font-family: var(--font-display);
+  font-size: var(--text-display);
+  font-weight: 400;
+  /* Display type needs tightening; the tracking that works at 16px opens
+   * badly at 136px. */
+  letter-spacing: -0.03em;
+  line-height: 0.86;
+  color: var(--text);
+  text-wrap: balance;
 }
 
-.tagline { color: var(--text-muted); font-size: var(--text-md); }
+/* The one flourish on the page, and it is typographic rather than decorative:
+ * the second word set in the serif's italic, which is where that face is at
+ * its most characterful. */
+.wordmark em {
+  font-style: italic;
+  color: var(--accent);
+}
 
-.setup-grid { display: grid; gap: var(--space-5); }
+.tagline {
+  color: var(--text-muted);
+  font-size: var(--text-lg);
+  max-width: 34ch;
+  text-wrap: pretty;
+}
+
+/* A rule under the masthead, drawn on load. Cheap, and it makes the page feel
+ * printed rather than assembled. */
+.masthead-rule {
+  height: 1px;
+  background: var(--border-strong);
+  transform-origin: left center;
+  animation: rule-draw 900ms var(--ease-out-soft) 260ms both;
+}
+
+@keyframes rule-draw {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+/* Two columns on wide screens: settings left, character right. The single
+ * stacked column made the page a long scroll of identical rows. */
+.setup-grid {
+  display: grid;
+  gap: var(--space-4) clamp(var(--space-4), 3vw, var(--space-6));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  align-items: start;
+}
+
+.character-block { display: grid; gap: var(--space-3); }
 
 .setup-section { display: grid; gap: var(--space-2); }
 
@@ -72,7 +102,14 @@
   gap: var(--space-3);
   align-items: center;
 }
-.quick-start .btn-primary { flex: 1 1 12rem; font-size: var(--text-md); }
+.quick-start .btn-primary {
+  flex: 0 1 auto;
+  min-width: 11rem;
+  font-size: var(--text-md);
+  min-height: 3.25rem;
+  padding-inline: var(--space-5);
+}
+.quick-start .btn { min-height: 3.25rem; }
 
 .hint-text { color: var(--text-subtle); font-size: var(--text-sm); }
 

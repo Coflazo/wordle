@@ -26,13 +26,14 @@
        origin before a single pixel could paint. -->
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" media="print" onload="this.media='all'"
-        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&family=Space+Grotesk:wght@600;700;800&display=swap">
+        href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap">
 
   <link rel="modulepreload" href="/js/i18n.js">
   <link rel="modulepreload" href="/js/api.js">
   <link rel="modulepreload" href="/js/state.js">
   <link rel="modulepreload" href="/js/avatar.js">
   <link rel="modulepreload" href="/js/theme.js">
+  <link rel="modulepreload" href="/js/motion.js">
 </head>
 <body>
   <a class="skip-link" href="#setup" data-i18n="nav.skipToContent">Skip to content</a>
@@ -41,12 +42,23 @@
 
   <div class="welcome-shell">
     <main class="welcome-card" id="setup">
-      <header class="welcome-header">
-        <h1 class="wordmark" data-i18n="app.name">Oflaz Wordle</h1>
+      <header class="welcome-header" data-enter="1">
+        <h1 class="wordmark">Oflaz <em>Wordle</em></h1>
         <p class="tagline" data-i18n="app.tagline"></p>
       </header>
+      <div class="masthead-rule" role="presentation"></div>
 
-      <div class="setup-grid">
+      <div class="quick-start" data-enter="3">
+        <button class="btn btn-primary" id="start-btn" type="button" data-i18n="setup.start">
+          Start game
+        </button>
+        <button class="btn" id="daily-btn" type="button"
+                data-i18n="setup.daily" data-i18n-title="setup.dailyHint">
+          Today's puzzle
+        </button>
+      </div>
+
+      <div class="setup-grid" data-enter="4">
         <section class="setup-section">
           <h2 class="label" id="label-language" data-i18n="setup.language">Language</h2>
           <div class="segmented" id="language-picker" role="radiogroup" aria-labelledby="label-language">
@@ -89,24 +101,7 @@
           </div>
         </section>
 
-        <section class="setup-section">
-          <h2 class="label" id="label-character" data-i18n="setup.character">Character</h2>
-          <div class="character-row" id="character-row" role="radiogroup" aria-labelledby="label-character">
-            <div class="character-tile" data-value="default" tabindex="0">
-              <span class="avatar-slot" id="avatar-default"></span>
-              <span>
-                <span class="name" data-i18n="setup.defaultName">Oflaz</span>
-                <span class="desc" data-i18n="setup.defaultDesc"></span>
-              </span>
-            </div>
-            <div class="character-tile" data-value="custom" tabindex="-1">
-              <span class="avatar-slot" id="avatar-preview-small"></span>
-              <span>
-                <span class="name" data-i18n="setup.customName">Make your own</span>
-                <span class="desc" data-i18n="setup.customDesc"></span>
-              </span>
-            </div>
-          </div>
+      </div>
 
           <details class="advanced-options" id="custom-editor">
             <summary data-i18n="setup.customize">Customize your character</summary>
@@ -141,17 +136,28 @@
         </section>
       </div>
 
-      <div class="quick-start">
-        <button class="btn btn-primary" id="start-btn" type="button" data-i18n="setup.start">
-          Start game
-        </button>
-        <button class="btn" id="daily-btn" type="button"
-                data-i18n="setup.daily" data-i18n-title="setup.dailyHint">
-          Today's puzzle
-        </button>
-      </div>
 
-      <footer class="welcome-footer">
+      <section class="character-block" data-enter="5">
+        <div class="setup-section">
+          <h2 class="label" id="label-character" data-i18n="setup.character">Character</h2>
+          <div class="character-row" id="character-row" role="radiogroup" aria-labelledby="label-character">
+            <div class="character-tile" data-value="default" tabindex="0">
+              <span class="avatar-slot" id="avatar-default"></span>
+              <span>
+                <span class="name" data-i18n="setup.defaultName">Oflaz</span>
+                <span class="desc" data-i18n="setup.defaultDesc"></span>
+              </span>
+            </div>
+            <div class="character-tile" data-value="custom" tabindex="-1">
+              <span class="avatar-slot" id="avatar-preview-small"></span>
+              <span>
+                <span class="name" data-i18n="setup.customName">Make your own</span>
+                <span class="desc" data-i18n="setup.customDesc"></span>
+              </span>
+            </div>
+          </section>
+
+      <footer class="welcome-footer" data-enter="6">
         <p class="hint-text" data-i18n="game.meaningIntro"></p>
         <a class="quiet-link" href="/profile" data-i18n="nav.viewProfile">View profile</a>
       </footer>

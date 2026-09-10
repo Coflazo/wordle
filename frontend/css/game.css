@@ -54,15 +54,19 @@
   .topbar { background: var(--bg); }
 }
 
+/* The same serif as the masthead, small. It is the one place on the game
+ * screen that is not monospace, which is what makes it read as a signature
+ * rather than another label. */
 .topbar .wordmark {
-  font-family: var(--font-heading);
-  font-size: var(--text-md);
-  font-weight: var(--weight-black);
-  letter-spacing: var(--tracking-wide);
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 400;
+  letter-spacing: -0.01em;
   color: var(--text);
   text-decoration: none;
   white-space: nowrap;
 }
+.topbar .wordmark em { font-style: italic; color: var(--accent); }
 
 .topbar-meta { display: flex; gap: var(--space-2); flex-wrap: wrap; min-width: 0; }
 .topbar-actions { display: flex; gap: var(--space-2); margin-inline-start: auto; }
@@ -98,9 +102,28 @@
   align-items: center;
   justify-content: center;
   gap: var(--space-2);
-  /* flex-wrap is the point: three pills plus a button was about 300px, which
-   * clipped at 320px with no way to reach the overflow. */
 }
+
+/* Text buttons, not filled ones. */
+.status-strip .btn {
+  min-height: 2.25rem;
+  padding-inline: var(--space-3);
+  border-color: transparent;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+}
+.status-strip .btn:hover:not(:disabled) {
+  background: transparent;
+  color: var(--text);
+  border-color: var(--border);
+}
+.status-strip .btn:disabled { opacity: 0.35; }
+
+/* The strip wraps rather than clipping: three pills plus two buttons came to
+ * about 300px, which overflowed a 320px phone with no way to reach the rest. */
 
 .stat-pill {
   display: inline-flex;
@@ -464,7 +487,12 @@
      * makes the track actually flexible. */
     padding-inline: max(var(--space-5), var(--safe-left));
   }
-  .drawer { position: sticky; top: calc(var(--space-5) + 3.5rem); max-height: 70svh; }
+  .drawer {
+    position: sticky;
+    top: calc(var(--space-5) + 3.5rem);
+    align-self: start;
+    max-height: 70svh;
+  }
 }
 
 /* Landscape on a short viewport — phones held sideways, and small laptops.

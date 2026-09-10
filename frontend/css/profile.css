@@ -18,7 +18,12 @@
 }
 .profile-header .avatar { width: 4rem; height: 4rem; flex: none; }
 .profile-identity { display: grid; gap: var(--space-1); min-width: 0; }
-.profile-name { font-size: var(--text-xl); }
+.profile-name {
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
 .profile-meta { color: var(--text-muted); font-size: var(--text-sm); }
 .profile-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-inline-start: auto; }
 
@@ -55,7 +60,9 @@
   border-radius: var(--radius-lg);
 }
 .stat-card .value {
-  font-family: var(--font-heading);
+  /* Figures stay monospace: a dashboard number that shifts width as it counts
+   * up is the kind of detail that reads as sloppy without anyone naming it. */
+  font-family: var(--font-mono);
   font-size: var(--text-2xl);
   font-weight: var(--weight-bold);
   line-height: var(--leading-tight);
@@ -101,20 +108,22 @@
 .dist-bar > span {
   border-radius: var(--radius-xs);
   min-width: 2px;
-  background: var(--accent-3);
+  background: var(--accent);
 }
-/* Hue by attempt count, generated rather than hand-listed k1..k8 — a nine or
- * ten attempt win previously fell through to the unstyled default and was
- * coloured as if it were a one-attempt win. */
+/* One hue, ramped from the board's "correct" green through to danger, so the
+ * chart reads as a single gradient of effort rather than five unrelated
+ * colours. Generated rather than hand-listed: a nine or ten attempt win used
+ * to fall through to the default and be coloured as if it were a one-attempt
+ * win. */
 .dist-bar > span[data-attempts="1"] { background: var(--tile-correct-bg); }
-.dist-bar > span[data-attempts="2"] { background: color-mix(in srgb, var(--tile-correct-bg) 82%, var(--accent)); }
-.dist-bar > span[data-attempts="3"] { background: color-mix(in srgb, var(--tile-correct-bg) 62%, var(--accent)); }
-.dist-bar > span[data-attempts="4"] { background: var(--accent); }
-.dist-bar > span[data-attempts="5"] { background: color-mix(in srgb, var(--accent) 70%, var(--accent-3)); }
-.dist-bar > span[data-attempts="6"] { background: var(--accent-3); }
-.dist-bar > span[data-attempts="7"] { background: color-mix(in srgb, var(--accent-3) 70%, var(--accent-2)); }
-.dist-bar > span[data-attempts="8"] { background: var(--accent-2); }
-.dist-bar > span[data-attempts="9"] { background: color-mix(in srgb, var(--accent-2) 70%, var(--danger)); }
+.dist-bar > span[data-attempts="2"] { background: color-mix(in srgb, var(--tile-correct-bg) 84%, var(--tile-present-bg)); }
+.dist-bar > span[data-attempts="3"] { background: color-mix(in srgb, var(--tile-correct-bg) 62%, var(--tile-present-bg)); }
+.dist-bar > span[data-attempts="4"] { background: color-mix(in srgb, var(--tile-correct-bg) 38%, var(--tile-present-bg)); }
+.dist-bar > span[data-attempts="5"] { background: var(--tile-present-bg); }
+.dist-bar > span[data-attempts="6"] { background: color-mix(in srgb, var(--tile-present-bg) 70%, var(--accent)); }
+.dist-bar > span[data-attempts="7"] { background: color-mix(in srgb, var(--tile-present-bg) 40%, var(--accent)); }
+.dist-bar > span[data-attempts="8"] { background: var(--accent); }
+.dist-bar > span[data-attempts="9"] { background: color-mix(in srgb, var(--accent) 65%, var(--danger)); }
 .dist-bar > span[data-attempts="10"] { background: var(--danger); }
 
 /* ------------------------------------------------------------- tables */

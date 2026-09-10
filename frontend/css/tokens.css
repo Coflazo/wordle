@@ -36,9 +36,15 @@
   --pal-amber-500: #dcae3c;
   --pal-amber-ink: #2b1e00;
 
-  --pal-cyan-400: #62e6ff;
-  --pal-pink-400: #ff5da2;
-  --pal-purple-400: #8d7cff;
+  /* One accent, not three. Signal orange rather than the cyan every dark
+   * developer tool already uses, and far enough from the amber "present" tile
+   * (#f4c95d) to never be mistaken for a game state. Green and amber belong to
+   * the board and appear nowhere else. */
+  --pal-signal-400: #ff5c36;
+  /* The light-theme step is much darker than a naive shade: #e64a24 measures
+   * 3.68:1 on the light background and fails AA for link text. */
+  --pal-signal-500: #c73714;
+  --pal-signal-ink: #1a0600;
   --pal-red-400: #ff6b6b;
   --pal-red-500: #d64545;
 
@@ -76,6 +82,10 @@
   --text-xl: clamp(1.25rem, 1.1rem + 0.75vw, 1.625rem);
   --text-2xl: clamp(1.5rem, 1.2rem + 1.5vw, 2.25rem);
   --text-3xl: clamp(1.875rem, 1.3rem + 2.9vw, 3.25rem);
+  /* The display step exists so one thing on the page can be enormous. Against
+   * a 0.875rem label that is a 10:1 ratio; the old ceiling was 3.25:1, which
+   * is why nothing ever felt like a headline. */
+  --text-display: clamp(3.25rem, 1rem + 11vw, 8.5rem);
 
   --leading-tight: 1.15;
   --leading-snug: 1.35;
@@ -92,9 +102,14 @@
   --weight-bold: 700;
   --weight-black: 800;
 
-  --font-heading: "Space Grotesk", "Inter", system-ui, -apple-system, sans-serif;
-  --font-body: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  /* A serif voice over a monospace instrument. The board is a grid of glyphs,
+   * so mono carries every functional surface; the serif exists to be the one
+   * warm, human thing on screen. Inter is demoted to long-form definition text
+   * only — as a display face it is the single most generic choice available. */
+  --font-display: "Instrument Serif", "Iowan Old Style", Georgia, serif;
   --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --font-body: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-heading: var(--font-mono);
 
   /* ----------------------------------------------------------- radius */
   --radius-xs: 3px;
@@ -166,11 +181,10 @@
   /* Non-text UI boundaries need 3:1 per WCAG 1.4.11. The old
    * rgba(255,255,255,0.12) composited to about 1.4:1. */
   --border-strong: rgb(255 255 255 / 0.32);
-  --focus-ring: var(--pal-cyan-400);
+  --focus-ring: var(--pal-signal-400);
 
-  --accent: var(--pal-cyan-400);
-  --accent-2: var(--pal-pink-400);
-  --accent-3: var(--pal-purple-400);
+  --accent: var(--pal-signal-400);
+  --accent-ink: var(--pal-signal-ink);
   --danger: var(--pal-red-400);
   --danger-surface: rgb(255 107 107 / 0.12);
 
@@ -183,9 +197,11 @@
   --tile-correct-bg: var(--pal-green-400);
   --tile-correct-ink: var(--pal-green-ink);
 
-  --btn-primary-bg: linear-gradient(180deg, var(--pal-green-400), var(--pal-green-500));
-  --btn-primary-ink: var(--pal-green-ink);
-  --btn-primary-glow: rgb(60 203 127 / 0.32);
+  /* Maximum contrast, no gradient. A gradient button is the most common tell
+   * in generated interfaces, and a green one would collide with the board. */
+  --btn-primary-bg: var(--pal-ink-050);
+  --btn-primary-ink: var(--pal-ink-900);
+  --btn-primary-glow: rgb(244 247 251 / 0.18);
 
   /* Shown on tiles and keys in contrast and colourblind themes. Colour alone
    * fails WCAG 1.4.1, and a deuteranope cannot separate the default green from
@@ -213,9 +229,7 @@
   --border-strong: rgb(16 20 30 / 0.36);
   --focus-ring: #0b6ea8;
 
-  --accent: #0b7fa8;
-  --accent-2: #c2246d;
-  --accent-3: #5b46d6;
+  --accent: var(--pal-signal-500);
   --danger: var(--pal-red-500);
   --danger-surface: rgb(214 69 69 / 0.1);
 
@@ -228,9 +242,9 @@
   --tile-correct-bg: var(--pal-green-600);
   --tile-correct-ink: #ffffff;
 
-  --btn-primary-bg: linear-gradient(180deg, var(--pal-green-500), var(--pal-green-600));
+  --btn-primary-bg: #12151d;
   --btn-primary-ink: #ffffff;
-  --btn-primary-glow: rgb(31 139 80 / 0.28);
+  --btn-primary-glow: rgb(18 21 29 / 0.22);
 
   --shadow-1: 0 1px 2px rgb(16 20 30 / 0.08);
   --shadow-2: 0 4px 12px rgb(16 20 30 / 0.1);
@@ -258,9 +272,7 @@
   --border-strong: #ffffff;
   --focus-ring: #ffd400;
 
-  --accent: #4cc9ff;
-  --accent-2: #ff7ab8;
-  --accent-3: #b3a4ff;
+  --accent: #ffb08a;
   --danger: #ff8080;
   --danger-surface: rgb(255 128 128 / 0.18);
 
@@ -273,9 +285,9 @@
   --tile-correct-bg: #00d47a;
   --tile-correct-ink: #000000;
 
-  --btn-primary-bg: #00d47a;
+  --btn-primary-bg: #ffffff;
   --btn-primary-ink: #000000;
-  --btn-primary-glow: rgb(0 212 122 / 0.5);
+  --btn-primary-glow: rgb(255 255 255 / 0.5);
 
   --glyph-opacity: 1;
 }
@@ -290,10 +302,10 @@
   --tile-correct-bg: var(--pal-cb-blue);
   --tile-correct-ink: var(--pal-cb-blue-ink);
 
-  --accent: #56b4e9;
-  --btn-primary-bg: linear-gradient(180deg, #0083cc, var(--pal-cb-blue));
-  --btn-primary-ink: #ffffff;
-  --btn-primary-glow: rgb(0 114 178 / 0.36);
+  --accent: #ff9d45;
+  --btn-primary-bg: var(--pal-ink-050);
+  --btn-primary-ink: var(--pal-ink-900);
+  --btn-primary-glow: rgb(244 247 251 / 0.18);
 
   --glyph-opacity: 1;
 }
@@ -321,8 +333,6 @@
     --focus-ring: #0b6ea8;
 
     --accent: #0b7fa8;
-    --accent-2: #c2246d;
-    --accent-3: #5b46d6;
     --danger: var(--pal-red-500);
     --danger-surface: rgb(214 69 69 / 0.1);
 
