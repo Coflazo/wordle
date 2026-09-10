@@ -1,10 +1,5 @@
 #include "wordle/wordbank.hpp"
 
-#include <fcntl.h>
-#include <sys/mman.h>
-#include <sys/stat.h>
-#include <unistd.h>
-
 #include <algorithm>
 #include <cerrno>
 #include <cstdio>
@@ -41,6 +36,7 @@ WordBank::WordBank(WordBank&& o) noexcept { *this = std::move(o); }
 WordBank& WordBank::operator=(WordBank&& o) noexcept {
     if (this != &o) {
         reset();
+        map_ = std::move(o.map_);
         base_ = o.base_;
         size_ = o.size_;
         lang_ = o.lang_;
@@ -56,36 +52,20 @@ WordBank& WordBank::operator=(WordBank&& o) noexcept {
 }
 
 void WordBank::reset() {
-    if (base_ != nullptr) {
-        ::munmap(const_cast<std::uint8_t*>(base_), size_);
-        base_ = nullptr;
-        size_ = 0;
-    }
+    map_.close();
+    base_ = nullptr;
+    size_ = 0;
 }
 
 void WordBank::open(const std::string& path) {
     reset();
-    int fd = ::open(path.c_str(), O_RDONLY);
-    if (fd < 0) fail(path, std::strerror(errno));
-
-    struct stat st {};
-    if (::fstat(fd, &st) != 0) {
-        int e = errno;
-        ::close(fd);
-        fail(path, std::strerror(e));
-    }
-    if (static_cast<std::size_t>(st.st_size) < kHeaderSize) {
-        ::close(fd);
+    map_.open(path);  // throws with the path and OS error already in the message
+    if (map_.size() < kHeaderSize) {
+        reset();
         fail(path, "shorter than a header; rebuild with scripts/build_wordbanks.py");
     }
-
-    void* m = ::mmap(nullptr, static_cast<std::size_t>(st.st_size), PROT_READ, MAP_PRIVATE, fd, 0);
-    int e = errno;
-    ::close(fd);  // the mapping keeps its own reference
-    if (m == MAP_FAILED) fail(path, std::strerror(e));
-
-    base_ = static_cast<const std::uint8_t*>(m);
-    size_ = static_cast<std::size_t>(st.st_size);
+    base_ = map_.data();
+    size_ = map_.size();
     path_ = path;
 
     if (std::memcmp(base_, kMagic, 4) != 0) {

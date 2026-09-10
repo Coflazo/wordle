@@ -31,6 +31,7 @@
 #include <vector>
 
 #include "wordle/alphabet.hpp"
+#include "wordle/mapped_file.hpp"
 #include "wordle/word.hpp"
 
 namespace wordle {
@@ -112,6 +113,7 @@ class WordBank {
     const Bucket* bucket(int len) const;
     void reset();
 
+    MappedFile map_;
     const std::uint8_t* base_ = nullptr;
     std::size_t size_ = 0;
     Lang lang_ = Lang::en;

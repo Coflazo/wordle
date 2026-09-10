@@ -1,117 +1,151 @@
-"""Word bank loading and target selection."""
+"""Word banks, backed by the native memory-mapped bank.
+
+Previously this module parsed six JSON files into Python lists and then built
+sets from the same strings, which measured 121 ms of parsing and 74 MB resident
+with both copies alive. A .wbk is mmap'd instead: opening one is a syscall, the
+pages are shared between processes, and membership is a binary search over
+packed letter codes with no allocation.
+"""
 
 from __future__ import annotations
 
-import json
 import random
-from functools import lru_cache
-from pathlib import Path
-from typing import Dict, List, Set
+import threading
+from typing import Dict, List, Sequence
 
-DATA_DIR = Path(__file__).resolve().parent.parent / "data" / "processed"
+import wordle_core as wc
 
-# Attempts by length + difficulty modifier.
-ATTEMPTS_BY_LENGTH = {5: 6, 6: 7, 7: 7, 8: 8, 9: 8, 10: 9}
+from app import config
+from app.errors import BANK_UNAVAILABLE, NO_WORDS, Unavailable, Unprocessable
 
-# Length distribution for random draws.
-LENGTH_DISTRIBUTION = {5: 0.35, 6: 0.25, 7: 0.15, 8: 0.10, 9: 0.08, 10: 0.07}
-
-TR_ASCII_FOLD = str.maketrans(
-    {
-        "ç": "c",
-        "ğ": "g",
-        "ı": "i",
-        "ö": "o",
-        "ş": "s",
-        "ü": "u",
-    }
-)
+_banks: Dict[str, wc.Bank] = {}
+_lock = threading.Lock()
 
 
-@lru_cache(maxsize=8)
-def _load_bank(language: str, kind: str) -> List[str]:
-    """Return the processed word bank for (language, kind='targets'|'allowed')."""
-    path = DATA_DIR / f"{language}_{kind}.json"
-    if not path.exists():
-        return []
-    with path.open("r", encoding="utf-8") as fh:
-        return json.load(fh)
+def bank(language: str) -> wc.Bank:
+    """Open (once) and return the bank for a language."""
+    existing = _banks.get(language)
+    if existing is not None:
+        return existing
+    if language not in config.LANGUAGES:
+        raise Unprocessable("unsupported_language", f"unsupported language: {language}")
+    with _lock:
+        existing = _banks.get(language)
+        if existing is not None:
+            return existing
+        path = config.BANK_DIR / f"{language}.wbk"
+        try:
+            opened = wc.Bank(str(path))
+        except Exception as exc:  # missing, truncated, or a stale format version
+            raise Unavailable(
+                BANK_UNAVAILABLE,
+                f"word bank for {language} is unavailable: {exc}. "
+                "Run: python -m scripts.build_wordbanks",
+            ) from exc
+        _banks[language] = opened
+        return opened
 
 
-@lru_cache(maxsize=8)
-def _allowed_set(language: str) -> Set[str]:
-    """Frozen set for O(1) guess validation. Includes targets ∪ allowed."""
-    return set(_load_bank(language, "targets")) | set(_load_bank(language, "allowed"))
+def warm_up() -> None:
+    """Open every bank at startup so a missing one fails loudly, not mid-game."""
+    for language in config.LANGUAGES:
+        bank(language)
 
 
-@lru_cache(maxsize=32)
-def _targets_by_length(language: str, length: int) -> List[str]:
-    return [w for w in _load_bank(language, "targets") if len(w) == length]
+def fold(language: str, word: str) -> str:
+    """Locale-correct lowercase. See native/src/normalize.cpp for why."""
+    return wc.fold(word, language)
+
+
+def display(language: str, word: str) -> str:
+    """Presentation form — German nouns keep their capital."""
+    return bank(language).display(word)
 
 
 def is_allowed_guess(language: str, word: str) -> bool:
-    return word.lower() in _allowed_set(language)
+    return bank(language).is_allowed(word)
 
 
-def _fold_turkish_ascii(word: str) -> str:
-    return word.translate(TR_ASCII_FOLD)
-
-
-@lru_cache(maxsize=1)
-def _turkish_spelling_index() -> Dict[str, List[str]]:
-    target_words = set(_load_bank("tr", "targets"))
-    index: Dict[str, List[str]] = {}
-    for word in _allowed_set("tr"):
-        folded = _fold_turkish_ascii(word)
-        if folded == word:
-            continue
-        index.setdefault(folded, []).append(word)
-
-    for folded, words in index.items():
-        words.sort(key=lambda w: (0 if w in target_words else 1, len(w), w))
-    return index
-
-
-def turkish_spelling_candidates(word: str, limit: int = 5) -> List[str]:
-    norm = word.strip().lower()
-    return [w for w in _turkish_spelling_index().get(norm, []) if w != norm][:limit]
-
-
-def sample_length(exclude: List[int] | None = None) -> int:
-    """Sample a word length from the recommended distribution."""
-    lengths = [l for l in LENGTH_DISTRIBUTION if not exclude or l not in exclude]
-    weights = [LENGTH_DISTRIBUTION[l] for l in lengths]
-    return random.choices(lengths, weights=weights, k=1)[0]
-
-
-def pick_target(language: str, word_length: int) -> str:
-    """Pick a random target word of the requested length."""
-    pool = _targets_by_length(language, word_length)
-    if not pool:
-        # Fall back to any length that has words.
-        for candidate_length in [5, 6, 7, 8, 9, 10]:
-            pool = _targets_by_length(language, candidate_length)
-            if pool:
-                break
-    if not pool:
-        raise RuntimeError(f"No target words for language={language}")
-    return random.choice(pool)
+def tiers_for(difficulty: str) -> Sequence[str]:
+    return config.TIERS_BY_DIFFICULTY.get(difficulty, config.TIERS_BY_DIFFICULTY["classic"])
 
 
 def attempts_for(word_length: int, difficulty: str = "classic") -> int:
-    base = ATTEMPTS_BY_LENGTH.get(word_length, 6)
+    if word_length not in config.ATTEMPTS_BY_LENGTH:
+        low, high = min(config.ATTEMPTS_BY_LENGTH), max(config.ATTEMPTS_BY_LENGTH)
+        raise Unprocessable(
+            "unsupported_length",
+            f"word length must be {low}..{high}, got {word_length}",
+            word_length=word_length,
+        )
+    base = config.ATTEMPTS_BY_LENGTH[word_length]
     if difficulty == "chill":
-        return base + 1
+        return base + config.CHILL_BONUS_ATTEMPTS
     return base
 
 
-def bank_summary() -> Dict[str, Dict[str, int]]:
-    """Diagnostics: counts by (language, length)."""
-    out: Dict[str, Dict[str, int]] = {}
-    for lang in ("en", "tr", "de"):
-        buckets: Dict[str, int] = {}
-        for length in range(5, 11):
-            buckets[str(length)] = len(_targets_by_length(lang, length))
-        buckets["allowed_total"] = len(_allowed_set(lang))
-        out[lang] = buckets
+def sample_length(language: str, difficulty: str) -> int:
+    """Draw a length from the configured distribution, skipping empty buckets."""
+    tiers = tiers_for(difficulty)
+    b = bank(language)
+    lengths = [
+        length
+        for length in config.LENGTH_DISTRIBUTION
+        if b.count_targets(length, tiers=tiers) > 0
+    ]
+    if not lengths:
+        raise Unavailable(BANK_UNAVAILABLE, f"no playable words for {language}/{difficulty}")
+    weights = [config.LENGTH_DISTRIBUTION[length] for length in lengths]
+    return random.choices(lengths, weights=weights, k=1)[0]
+
+
+def pick_target(language: str, word_length: int, difficulty: str = "classic") -> str:
+    """Pick an answer of exactly `word_length` letters.
+
+    Unlike the previous implementation this never falls back to a different
+    length. That fallback stored the requested length on the game while the
+    answer had another, so every subsequent guess failed the length check and the
+    game was unwinnable.
+    """
+    tiers = tiers_for(difficulty)
+    b = bank(language)
+    word = b.pick(word_length, tiers=tiers)
+    if word is None:
+        raise Unprocessable(
+            NO_WORDS,
+            f"no {word_length}-letter words for {language} at difficulty {difficulty}",
+            language=language,
+            word_length=word_length,
+        )
+    assert len(word) == word_length, "bank returned a word of the wrong length"
+    return word
+
+
+def suggest(language: str, word: str, limit: int = 3, same_length_only: bool = True) -> List[str]:
+    """"Did you mean" candidates, for a guess that was not in the bank."""
+    return bank(language).suggest(
+        word, limit=limit, max_distance=2, same_length_only=same_length_only
+    )
+
+
+def bank_summary() -> Dict[str, Dict[str, object]]:
+    """Diagnostics. Only reachable when WORDLE_DEBUG=1."""
+    out: Dict[str, Dict[str, object]] = {}
+    for language in config.LANGUAGES:
+        b = bank(language)
+        out[language] = {
+            "targets": b.target_count,
+            "allowed": b.allowed_count,
+            "by_length": {
+                str(length): {
+                    "targets": b.count_targets(length),
+                    "allowed": b.count_allowed(length),
+                    **{
+                        tier: b.count_targets(length, tiers=(tier,))
+                        for tier in wc.TIERS
+                    },
+                }
+                for length in range(wc.MIN_LEN, wc.MAX_LEN + 1)
+            },
+        }
     return out

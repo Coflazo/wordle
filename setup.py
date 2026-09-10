@@ -28,31 +28,29 @@ except ImportError:  # pragma: no cover - a build-time guard, not runtime code
 ROOT = Path(__file__).resolve().parent
 NATIVE = ROOT / "native"
 
-SOURCES = [
-    str(NATIVE / "bindings" / "module.cpp"),
-    str(NATIVE / "src" / "alphabet.cpp"),
-    str(NATIVE / "src" / "normalize.cpp"),
-    str(NATIVE / "src" / "word.cpp"),
-    str(NATIVE / "src" / "score.cpp"),
-    str(NATIVE / "src" / "wordbank.cpp"),
-    str(NATIVE / "src" / "solver.cpp"),
-    str(NATIVE / "src" / "suggest.cpp"),
-]
+SOURCES = [str(NATIVE / "bindings" / "module.cpp")] + sorted(
+    str(p) for p in (NATIVE / "src").glob("*.cpp")
+)
 
-compile_args = ["-std=c++20", "-O3", "-fvisibility=hidden", "-Wall", "-Wextra"]
-link_args: list[str] = []
+if sys.platform == "win32":
+    # MSVC. /EHsc because pybind11 translates C++ exceptions at the boundary,
+    # /bigobj because the binding translation unit exceeds the default section
+    # limit once pybind11's templates are instantiated.
+    compile_args = ["/std:c++20", "/O2", "/EHsc", "/bigobj", "/W3"]
+    link_args: list[str] = []
+else:
+    compile_args = ["-std=c++20", "-O3", "-fvisibility=hidden", "-Wall", "-Wextra"]
+    link_args = []
 
-if sys.platform == "darwin":
-    # 10.15 is the first macOS with complete <filesystem> and the C++17 ABI bits
-    # libc++ needs; going lower breaks std::string_view returns in shared libs.
-    compile_args.append("-mmacosx-version-min=10.15")
-    link_args.append("-mmacosx-version-min=10.15")
+    if sys.platform == "darwin":
+        # 10.15 is the first macOS with a complete libc++ <filesystem>.
+        compile_args.append("-mmacosx-version-min=10.15")
+        link_args.append("-mmacosx-version-min=10.15")
 
-# Deliberately no -march=native. The .so gets committed to the repo's build
-# cache and copied between machines; baking in AVX-512 turns a wrong-CPU run
-# into SIGILL instead of a slightly slower scan.
-if platform.machine() in {"x86_64", "AMD64"}:
-    compile_args.append("-mpopcnt")  # std::popcount in suggest.cpp's prefilter
+    # Deliberately no -march=native: a binary built on one machine and copied to
+    # another would SIGILL rather than just run a little slower.
+    if platform.machine() in {"x86_64", "AMD64", "i686"}:
+        compile_args.append("-mpopcnt")  # std::popcount in the suggest prefilter
 
 ext = Extension(
     "wordle_core",

@@ -1,33 +1,60 @@
-"""Pydantic schemas for request/response bodies."""
+"""Pydantic request and response models.
+
+Every route declares a response_model. The dashboard and meaning endpoints used
+to declare none, so the schemas describing them were dead code and the contract
+was whatever the handler happened to return that day.
+"""
 
 from __future__ import annotations
 
 from datetime import datetime
 from typing import Any, Dict, List, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
+from app import config
 
 Language = Literal["en", "tr", "de"]
 Difficulty = Literal["chill", "classic", "scholar"]
 LetterMask = Literal["green", "yellow", "gray"]
+Tier = Literal["common", "standard", "rare"]
+Theme = Literal["system", "dark", "light", "contrast", "colorblind"]
 
 
-# ----- Profiles -----
+# ------------------------------------------------------------------- profiles
+
+def _bounded_avatar(value: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """The column is untyped JSON and SQLite does not enforce VARCHAR length, so
+    without this an unbounded blob goes straight to disk."""
+    if value is None:
+        return None
+    import json
+
+    if len(json.dumps(value)) > config.MAX_AVATAR_CONFIG_BYTES:
+        raise ValueError(
+            f"avatar_config must serialize to under {config.MAX_AVATAR_CONFIG_BYTES} bytes"
+        )
+    return value
 
 
 class ProfileCreate(BaseModel):
-    name: str = Field(min_length=1, max_length=64)
-    avatar_type: str = Field(default="default")
+    name: str = Field(min_length=1, max_length=config.MAX_PROFILE_NAME)
+    avatar_type: str = Field(default="default", max_length=32)
     avatar_config: Dict[str, Any] = Field(default_factory=dict)
     preferred_language: Language = "en"
+    theme: Theme = "system"
+
+    _check_avatar = field_validator("avatar_config")(_bounded_avatar)
 
 
 class ProfileUpdate(BaseModel):
-    name: Optional[str] = None
-    avatar_type: Optional[str] = None
+    name: Optional[str] = Field(default=None, min_length=1, max_length=config.MAX_PROFILE_NAME)
+    avatar_type: Optional[str] = Field(default=None, max_length=32)
     avatar_config: Optional[Dict[str, Any]] = None
     preferred_language: Optional[Language] = None
+    theme: Optional[Theme] = None
+
+    _check_avatar = field_validator("avatar_config")(_bounded_avatar)
 
 
 class ProfileOut(BaseModel):
@@ -36,17 +63,28 @@ class ProfileOut(BaseModel):
     avatar_type: str
     avatar_config: Dict[str, Any]
     preferred_language: Language
+    theme: Theme
     created_at: datetime
 
 
-# ----- Games -----
-
+# ---------------------------------------------------------------------- games
 
 class GameStart(BaseModel):
     profile_id: int
     language: Language
     difficulty: Difficulty = "classic"
-    word_length: Optional[int] = Field(default=None, ge=5, le=10)
+    word_length: Optional[int] = Field(
+        default=None,
+        ge=min(config.ATTEMPTS_BY_LENGTH),
+        le=max(config.ATTEMPTS_BY_LENGTH),
+        description="Omit for a weighted random length ('Mix' in the UI).",
+    )
+
+
+class GuessEntry(BaseModel):
+    guess: str
+    turn: int
+    result: List[LetterMask]
 
 
 class GameOut(BaseModel):
@@ -57,81 +95,183 @@ class GameOut(BaseModel):
     word_length: int
     attempts_allowed: int
     attempts_used: int
-    status: str
-    guesses: List[Dict[str, Any]]
+    status: Literal["active", "won", "lost"]
+    resigned: bool = False
+    guesses: List[GuessEntry] = Field(default_factory=list)
     answer: Optional[str] = None
+    answer_display: Optional[str] = None
+    tiers: List[Tier] = Field(default_factory=list)
 
 
 class GuessIn(BaseModel):
-    guess: str
+    # Bounded at the schema layer so an oversized body is rejected before it
+    # reaches the normalizer. Ten letters is the longest word; a decomposed
+    # umlaut costs two codepoints, hence the headroom.
+    guess: str = Field(min_length=1, max_length=64)
 
 
 class GuessOut(BaseModel):
-    guess: Optional[str] = None
+    guess: Optional[str]
     result: List[LetterMask]
+    turn: int
     attempts_used: int
     attempts_allowed: int
-    status: str
+    status: Literal["active", "won", "lost"]
     answer: Optional[str] = None
+    answer_display: Optional[str] = None
 
 
-# ----- Meaning -----
+# ---------------------------------------------------------------------- hints
 
+class HintSuggestion(BaseModel):
+    word: str
+    bits: float
+    expected_remaining: float
+    is_candidate: bool
+
+
+class HintOut(BaseModel):
+    candidates_remaining: int
+    candidates: List[str]
+    suggestions: List[HintSuggestion]
+    source: Literal["solverd", "in-process"]
+    hints_used: int
+
+
+# -------------------------------------------------------------------- meaning
 
 class MeaningEntry(BaseModel):
     part_of_speech: Optional[str] = None
-    definition: Optional[str] = None
+    definition: str
     example: Optional[str] = None
     synonyms: List[str] = Field(default_factory=list)
     antonyms: List[str] = Field(default_factory=list)
 
 
-class Meaning(BaseModel):
+class MeaningOut(BaseModel):
     word: str
+    display: str
     language: Language
     source: str
     source_label: str
-    phonetic: Optional[str] = None
-    audio_url: Optional[str] = None
     entries: List[MeaningEntry] = Field(default_factory=list)
     extras: Dict[str, Any] = Field(default_factory=dict)
-    fetched_at: datetime
     from_cache: bool = False
 
 
-# ----- Stats -----
-
+# ----------------------------------------------------------------- dashboard
 
 class CoreMetrics(BaseModel):
     games_played: int
     wins: int
-    losses: int
     win_rate: float
-    current_streak: int
-    best_streak: int
-    avg_guesses_per_win: float
-    avg_word_length_solved: float
+    avg_attempts: float
+    avg_word_length: float
     longest_word_solved: int
-    fastest_solve_seconds: Optional[float]
+    fastest_solve_seconds: Optional[float] = None
+    best_streak: int
+    current_streak: int
+    delta_last_7_games: float
+    delta_is_meaningful: bool
+    favorite_language: Optional[Language] = None
+
+
+class WordStat(BaseModel):
+    word: str
+    display: str
+    language: Language
+    mastery: float
+    seen: int
+    solved: int
+    failed: int
+    meaning_opened: int
+    last_seen_at: Optional[datetime] = None
 
 
 class VocabMetrics(BaseModel):
-    known_count: int
+    total_words_seen: int
     mastered_count: int
+    known_count: int
     struggling_count: int
-    solved_without_help_count: int
-    meaning_opened_count: int
-    repeated_failed_words: List[Dict[str, Any]]
-    favorite_language: Optional[str]
-    delta_last_7_games: float
+    mastered: List[WordStat]
+    known: List[WordStat]
+    struggling: List[WordStat]
 
 
-class DashboardPayload(BaseModel):
+class LanguageSplit(BaseModel):
+    language: Language
+    games: int
+    wins: int
+    win_rate: float
+
+
+class TimelineEntry(BaseModel):
+    game_id: str
+    language: Language
+    answer: str
+    answer_display: str
+    word_length: int
+    difficulty: Difficulty
+    attempts_used: int
+    attempts_allowed: int
+    status: Literal["won", "lost"]
+    resigned: bool
+    hints_used: int
+    finished_at: Optional[datetime] = None
+
+
+class ProfileSummary(BaseModel):
+    id: int
+    name: str
+    preferred_language: Language
+    created_at: Optional[datetime] = None
+
+
+class DashboardOut(BaseModel):
+    profile: ProfileSummary
+    language: Optional[Language] = None
     core: CoreMetrics
-    vocab: VocabMetrics
     attempts_distribution: Dict[str, Dict[str, int]]
-    language_split: Dict[str, int]
-    timeline: List[Dict[str, Any]]
-    mastered_words: List[Dict[str, Any]]
-    known_words: List[Dict[str, Any]]
-    struggling_words: List[Dict[str, Any]]
+    language_split: List[LanguageSplit]
+    vocabulary: VocabMetrics
+    timeline: List[TimelineEntry]
+
+
+# ------------------------------------------------------- flags & experiments
+
+class FlagsOut(BaseModel):
+    profile_id: Optional[int] = None
+    assignments: Dict[str, str]
+
+
+class EventIn(BaseModel):
+    name: str = Field(min_length=1, max_length=48)
+    game_id: Optional[str] = Field(default=None, max_length=36)
+    props: Dict[str, Any] = Field(default_factory=dict)
+
+
+class EventBatch(BaseModel):
+    profile_id: Optional[int] = None
+    events: List[EventIn] = Field(min_length=1, max_length=config.MAX_EVENTS_PER_BATCH)
+
+
+class ArmResult(BaseModel):
+    arm: str
+    profiles: int
+    games: int
+    wins: int
+    win_rate: float
+    ci_low: float
+    ci_high: float
+    avg_attempts: Optional[float] = None
+
+
+class ExperimentResult(BaseModel):
+    experiment: str
+    description: str
+    metric: str
+    arms: List[ArmResult]
+
+
+class ExperimentsOut(BaseModel):
+    experiments: List[ExperimentResult]
