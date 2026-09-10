@@ -1,146 +1,160 @@
-<!doctype html>
-<html lang="en">
+<!DOCTYPE html>
+<html lang="en" data-theme="system">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- viewport-fit=cover is what makes env(safe-area-inset-*) return anything
+       other than 0 on a notched phone. No user-scalable=no: blocking pinch
+       zoom is an accessibility failure. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Oflaz Wordle</title>
+  <meta name="description" content="Guess words from 5 to 10 letters in English, Turkish or German, then learn what they mean. Runs entirely on your own machine.">
+  <meta name="theme-color" content="#090B12" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#F6F8FC" media="(prefers-color-scheme: light)">
+  <meta name="color-scheme" content="dark light">
+
   <link rel="icon" type="image/svg+xml" href="/assets/icons/favicon.svg">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&family=Space+Grotesk:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="apple-touch-icon" href="/assets/icons/favicon.svg">
+  <link rel="manifest" href="/assets/manifest.json">
+
+  <link rel="stylesheet" href="/css/tokens.css">
   <link rel="stylesheet" href="/css/base.css">
-  <link rel="stylesheet" href="/css/motion.css">
   <link rel="stylesheet" href="/css/welcome.css">
+
+  <!-- Fonts load without blocking first paint, and the app stays fully usable
+       if they never arrive — which matters for something that promises to run
+       offline. The old markup made a render-blocking request to a third-party
+       origin before a single pixel could paint. -->
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" media="print" onload="this.media='all'"
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&family=Space+Grotesk:wght@600;700;800&display=swap">
+
+  <link rel="modulepreload" href="/js/i18n.js">
+  <link rel="modulepreload" href="/js/api.js">
+  <link rel="modulepreload" href="/js/state.js">
+  <link rel="modulepreload" href="/js/avatar.js">
+  <link rel="modulepreload" href="/js/theme.js">
 </head>
 <body>
-  <canvas id="pixel-bg"></canvas>
-  <main class="welcome-shell">
-    <section class="welcome-card" role="form">
+  <a class="skip-link" href="#setup" data-i18n="nav.skipToContent">Skip to content</a>
+
+  <canvas id="pixel-bg" aria-hidden="true"></canvas>
+
+  <div class="welcome-shell">
+    <main class="welcome-card" id="setup">
       <header class="welcome-header">
-        <h1 class="wordmark">Oflaz Wordle</h1>
-        <p class="subtitle">Train your brain in English, Turkish, and German.</p>
+        <h1 class="wordmark" data-i18n="app.name">Oflaz Wordle</h1>
+        <p class="tagline" data-i18n="app.tagline"></p>
       </header>
 
-      <div class="quick-start" role="group" aria-label="Start a game">
-        <div class="segmented" id="language-picker" role="tablist" aria-label="Language">
-          <button data-value="en" class="is-active">EN</button>
-          <button data-value="tr">TR</button>
-          <button data-value="de">DE</button>
-        </div>
-        <button id="start-btn" class="btn btn-primary">Start Game →</button>
+      <div class="setup-grid">
+        <section class="setup-section">
+          <h2 class="label" id="label-language" data-i18n="setup.language">Language</h2>
+          <div class="segmented" id="language-picker" role="radiogroup" aria-labelledby="label-language">
+            <button data-value="en" lang="en">English</button>
+            <button data-value="tr" lang="tr">Türkçe</button>
+            <button data-value="de" lang="de">Deutsch</button>
+          </div>
+        </section>
+
+        <section class="setup-section">
+          <h2 class="label" id="label-difficulty" data-i18n="setup.difficulty">Difficulty</h2>
+          <div class="segmented" id="difficulty-picker" role="radiogroup" aria-labelledby="label-difficulty">
+            <button data-value="chill" data-i18n="difficulty.chill" data-i18n-title="difficulty.chillHint">Chill</button>
+            <button data-value="classic" data-i18n="difficulty.classic" data-i18n-title="difficulty.classicHint">Classic</button>
+            <button data-value="scholar" data-i18n="difficulty.scholar" data-i18n-title="difficulty.scholarHint">Scholar</button>
+          </div>
+        </section>
+
+        <section class="setup-section">
+          <h2 class="label" id="label-length" data-i18n="setup.wordLength">Word length</h2>
+          <div class="segmented length-picker" id="length-picker" role="radiogroup" aria-labelledby="label-length">
+            <button data-value="mix" data-i18n="setup.mix" data-i18n-title="setup.mixHint">Mix</button>
+            <button data-value="5">5</button>
+            <button data-value="6">6</button>
+            <button data-value="7">7</button>
+            <button data-value="8">8</button>
+            <button data-value="9">9</button>
+            <button data-value="10">10</button>
+          </div>
+        </section>
+
+        <section class="setup-section">
+          <h2 class="label" id="label-theme" data-i18n="setup.theme">Theme</h2>
+          <div class="segmented" id="theme-picker" role="radiogroup" aria-labelledby="label-theme">
+            <button data-value="system" data-i18n="theme.system">System</button>
+            <button data-value="dark" data-i18n="theme.dark">Dark</button>
+            <button data-value="light" data-i18n="theme.light">Light</button>
+            <button data-value="contrast" data-i18n="theme.contrast">Contrast</button>
+            <button data-value="colorblind" data-i18n="theme.colorblind">Colourblind</button>
+          </div>
+        </section>
+
+        <section class="setup-section">
+          <h2 class="label" id="label-character" data-i18n="setup.character">Character</h2>
+          <div class="character-row" id="character-row" role="radiogroup" aria-labelledby="label-character">
+            <div class="character-tile" data-value="default" tabindex="0">
+              <span class="avatar-slot" id="avatar-default"></span>
+              <span>
+                <span class="name" data-i18n="setup.defaultName">Oflaz</span>
+                <span class="desc" data-i18n="setup.defaultDesc"></span>
+              </span>
+            </div>
+            <div class="character-tile" data-value="custom" tabindex="-1">
+              <span class="avatar-slot" id="avatar-preview-small"></span>
+              <span>
+                <span class="name" data-i18n="setup.customName">Make your own</span>
+                <span class="desc" data-i18n="setup.customDesc"></span>
+              </span>
+            </div>
+          </div>
+
+          <details class="advanced-options" id="custom-editor">
+            <summary data-i18n="setup.customize">Customize your character</summary>
+            <div class="editor-grid">
+              <div class="field">
+                <label class="label" for="custom-name" data-i18n="setup.name">Name</label>
+                <input class="input" id="custom-name" type="text" maxlength="24"
+                       data-i18n-placeholder="setup.namePlaceholder" autocomplete="nickname">
+              </div>
+              <div class="field">
+                <label class="label" for="custom-hair" data-i18n="setup.hair">Hair</label>
+                <select class="select" id="custom-hair"></select>
+              </div>
+              <div class="field">
+                <label class="label" for="custom-accessory" data-i18n="setup.accessory">Accessory</label>
+                <select class="select" id="custom-accessory"></select>
+              </div>
+              <div class="field">
+                <span class="label" id="label-shirt" data-i18n="setup.shirt">Shirt colour</span>
+                <div class="swatch-row" id="shirt-row" role="group" aria-labelledby="label-shirt"></div>
+              </div>
+              <div class="field">
+                <span class="label" id="label-aura" data-i18n="setup.aura">Aura colour</span>
+                <div class="swatch-row" id="aura-row" role="group" aria-labelledby="label-aura"></div>
+              </div>
+              <div class="field">
+                <span class="label" data-i18n="setup.preview">Preview</span>
+                <div class="avatar-preview" id="avatar-preview"></div>
+              </div>
+            </div>
+          </details>
+        </section>
       </div>
 
-      <details class="advanced-options">
-        <summary>Customize</summary>
-        <div class="stack-lg">
-          <div>
-            <div class="field-label">Difficulty</div>
-            <div class="segmented" id="difficulty-picker" role="tablist">
-              <button data-value="chill" title="Extra attempt, common words">Chill</button>
-              <button data-value="classic" class="is-active" title="Standard Wordle">Classic</button>
-              <button data-value="scholar" title="Rarer words, no help until turn 3">Scholar</button>
-            </div>
-          </div>
-
-          <div>
-            <div class="field-label">Word length</div>
-            <div class="segmented length-picker" id="length-picker" role="tablist" aria-label="Word length">
-              <button data-value="random" class="is-active">Mix</button>
-              <button data-value="5">5</button>
-              <button data-value="6">6</button>
-              <button data-value="7">7</button>
-              <button data-value="8">8</button>
-              <button data-value="9">9</button>
-              <button data-value="10">10</button>
-            </div>
-          </div>
-
-          <div>
-            <div class="field-label">Character</div>
-            <div class="character-row">
-              <div class="character-tile is-active" data-character="default" tabindex="0">
-                <div class="avatar-shell" data-avatar='{"base":"pixel-human","hair":"short-black","accessory":"badge-o","shirt":"midnight","aura":"green-glow","name":"Oflaz"}'></div>
-                <div>
-                  <div class="character-title">Default Oflaz</div>
-                  <div class="character-sub">Economics major, glowing O badge, calm.</div>
-                </div>
-              </div>
-              <div class="character-tile" data-character="custom" tabindex="0">
-                <div class="avatar-shell" id="custom-avatar-preview" data-avatar='{"base":"pixel-human","hair":"short-brown","accessory":"glasses","shirt":"cyan","aura":"cyan-glow","name":"You"}'></div>
-                <div>
-                  <div class="character-title">Create your own</div>
-                  <div class="character-sub">Name, hair, accessory, colors, aura.</div>
-                </div>
-              </div>
-            </div>
-
-            <div id="custom-editor" class="hidden">
-              <div class="editor-grid">
-                <label>
-                  <span>Name</span>
-                  <input type="text" id="custom-name" maxlength="24" placeholder="e.g. Çağan">
-                </label>
-                <label>
-                  <span>Hair</span>
-                  <select id="custom-hair">
-                    <option value="short-black">short black</option>
-                    <option value="short-brown">short brown</option>
-                    <option value="long-blond">long blond</option>
-                    <option value="curly-red">curly red</option>
-                    <option value="buzz">buzz</option>
-                    <option value="none">none</option>
-                  </select>
-                </label>
-                <label>
-                  <span>Accessory</span>
-                  <select id="custom-accessory">
-                    <option value="badge-o">O badge</option>
-                    <option value="glasses">glasses</option>
-                    <option value="crown">crown</option>
-                    <option value="headphones">headphones</option>
-                    <option value="scarf">scarf</option>
-                    <option value="calculator">calculator</option>
-                    <option value="book">book</option>
-                  </select>
-                </label>
-                <label>
-                  <span>Shirt</span>
-                  <div class="swatch-row" id="custom-shirt">
-                    <button class="swatch is-active" data-shirt="midnight" style="background:#171C2B"></button>
-                    <button class="swatch" data-shirt="cyan" style="background:#62E6FF"></button>
-                    <button class="swatch" data-shirt="pink" style="background:#FF5DA2"></button>
-                    <button class="swatch" data-shirt="purple" style="background:#8D7CFF"></button>
-                    <button class="swatch" data-shirt="green" style="background:#3CCB7F"></button>
-                    <button class="swatch" data-shirt="yellow" style="background:#F4C95D"></button>
-                  </div>
-                </label>
-                <label>
-                  <span>Aura</span>
-                  <div class="swatch-row" id="custom-aura">
-                    <button class="swatch is-active" data-aura="green-glow" style="background:#3CCB7F"></button>
-                    <button class="swatch" data-aura="cyan-glow" style="background:#62E6FF"></button>
-                    <button class="swatch" data-aura="pink-glow" style="background:#FF5DA2"></button>
-                    <button class="swatch" data-aura="purple-glow" style="background:#8D7CFF"></button>
-                    <button class="swatch" data-aura="none" style="background:#3A4052"></button>
-                  </div>
-                </label>
-                <label>
-                  <span>Preview</span>
-                  <div class="avatar-preview"><div class="avatar-shell" id="editor-preview"></div></div>
-                </label>
-              </div>
-            </div>
-          </div>
-        </div>
-      </details>
-
-      <div class="welcome-footer">
-        <a href="/profile" class="quiet-link">View profile →</a>
+      <div class="quick-start">
+        <button class="btn btn-primary" id="start-btn" type="button" data-i18n="setup.start">
+          Start game
+        </button>
       </div>
-    </section>
-  </main>
 
-  <script type="module" src="/js/pixel-background.js"></script>
+      <footer class="welcome-footer">
+        <p class="hint-text" data-i18n="game.meaningIntro"></p>
+        <a class="quiet-link" href="/profile" data-i18n="nav.viewProfile">View profile</a>
+      </footer>
+    </main>
+  </div>
+
   <script type="module" src="/js/welcome.js"></script>
+  <script type="module" src="/js/pixel-background.js"></script>
 </body>
 </html>

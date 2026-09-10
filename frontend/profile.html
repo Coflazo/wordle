@@ -1,74 +1,99 @@
-<!doctype html>
-<html lang="en">
+<!DOCTYPE html>
+<html lang="en" data-theme="system">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Oflaz Wordle</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Oflaz Wordle — Profile</title>
+  <meta name="description" content="Your vocabulary progress across English, Turkish and German.">
+  <meta name="theme-color" content="#090B12" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#F6F8FC" media="(prefers-color-scheme: light)">
+  <meta name="color-scheme" content="dark light">
+
   <link rel="icon" type="image/svg+xml" href="/assets/icons/favicon.svg">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&family=Space+Grotesk:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="apple-touch-icon" href="/assets/icons/favicon.svg">
+  <link rel="manifest" href="/assets/manifest.json">
+
+  <link rel="stylesheet" href="/css/tokens.css">
   <link rel="stylesheet" href="/css/base.css">
-  <link rel="stylesheet" href="/css/motion.css">
   <link rel="stylesheet" href="/css/profile.css">
+
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" media="print" onload="this.media='all'"
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&family=Space+Grotesk:wght@600;700;800&display=swap">
+
+  <link rel="modulepreload" href="/js/i18n.js">
+  <link rel="modulepreload" href="/js/api.js">
+  <link rel="modulepreload" href="/js/state.js">
+  <link rel="modulepreload" href="/js/theme.js">
 </head>
 <body>
-  <div class="profile-shell">
+  <a class="skip-link" href="#dashboard" data-i18n="nav.skipToContent">Skip to content</a>
+
+  <div class="profile-shell page">
     <header class="profile-header">
-      <div class="avatar-shell" id="profile-avatar"></div>
-      <div>
-        <div class="profile-name" id="profile-name">—</div>
-        <div class="profile-meta"><span id="profile-lang">preferred: en</span> · <span id="profile-since">since —</span></div>
+      <span class="avatar-slot" id="profile-avatar" aria-hidden="true"></span>
+      <div class="profile-identity">
+        <h1 class="profile-name" id="profile-name">—</h1>
+        <p class="profile-meta" id="profile-meta"></p>
       </div>
-      <div class="spacer"></div>
-      <a href="/" class="btn btn-primary">New game</a>
+      <div class="profile-actions">
+        <a class="btn btn-primary" href="/" data-i18n="nav.newGame">New game</a>
+      </div>
     </header>
 
-    <div class="tab-strip" id="lang-tabs" role="tablist">
-      <button data-lang="" class="is-active">All</button>
-      <button data-lang="en">English</button>
-      <button data-lang="tr">Turkish</button>
-      <button data-lang="de">German</button>
+    <div class="tab-strip" id="lang-tabs" aria-label="Language filter">
+      <button data-value="all" data-i18n="profile.all">All</button>
+      <button data-value="en" lang="en">English</button>
+      <button data-value="tr" lang="tr">Türkçe</button>
+      <button data-value="de" lang="de">Deutsch</button>
     </div>
 
-    <div id="empty-state" class="card empty-state hidden">
-      <p>No games yet — <a href="/">start one</a> and come back.</p>
-    </div>
+    <main id="dashboard">
+      <div id="empty-state"></div>
 
-    <section id="dashboard" class="stack-lg">
-      <div class="stat-grid">
-        <div class="stat-card"><span class="label">Games played</span><span class="value" data-metric="games_played">0</span></div>
-        <div class="stat-card">
-          <span class="label">Win rate</span>
-          <div class="row" style="align-items:center;gap:12px">
-            <span class="value win-rate" data-metric="win_rate">0%</span>
-            <div class="mastery-ring" id="win-rate-ring"><span class="ring-value">0%</span></div>
+      <section class="section" data-section hidden>
+        <h2 class="visually-hidden" data-i18n="profile.title">Profile</h2>
+        <div class="stat-grid" id="stat-grid"></div>
+      </section>
+
+      <section class="section" data-section hidden>
+        <h2 class="section-title" data-i18n="profile.distribution">Guesses needed, by word length</h2>
+        <div class="card distribution" id="distribution" style="padding: var(--space-4)"></div>
+      </section>
+
+      <section class="section" data-section hidden>
+        <h2 class="section-title" data-i18n="profile.languageSplit">By language</h2>
+        <div class="card" id="language-split" style="padding: var(--space-4); display: grid; gap: var(--space-3)"></div>
+      </section>
+
+      <section class="section" data-section hidden>
+        <h2 class="section-title" data-i18n="profile.vocabulary">Vocabulary</h2>
+        <div class="tables">
+          <div class="word-table">
+            <h3 data-i18n="profile.mastered">Mastered</h3>
+            <div id="table-mastered"></div>
+          </div>
+          <div class="word-table">
+            <h3 data-i18n="profile.known">Known</h3>
+            <div id="table-known"></div>
+          </div>
+          <div class="word-table">
+            <h3 data-i18n="profile.struggling">Still tricky</h3>
+            <div id="table-struggling"></div>
           </div>
         </div>
-        <div class="stat-card"><span class="label">Current streak</span><span class="value" data-metric="current_streak">0</span><span class="sub">consecutive wins</span></div>
-        <div class="stat-card"><span class="label">Best streak</span><span class="value" data-metric="best_streak">0</span></div>
-        <div class="stat-card"><span class="label">Avg attempts</span><span class="value" data-metric="avg_guesses">0</span><span class="sub">per win</span></div>
-        <div class="stat-card"><span class="label">Words mastered</span><span class="value" data-metric="mastered">0</span><span class="sub">solid ≥3× solved</span></div>
-      </div>
+      </section>
 
-      <div class="section-title">Attempts distribution — by word length</div>
-      <div class="distribution">
-        <div class="dist-grid" id="dist-grid"></div>
-      </div>
+      <section class="section" data-section hidden>
+        <h2 class="section-title" data-i18n="profile.recentGames">Recent games</h2>
+        <div class="card timeline" id="timeline" style="padding: var(--space-3)"></div>
+      </section>
 
-      <div class="section-title">Language split</div>
-      <div class="language-split" id="language-split"></div>
-
-      <div class="section-title">Vocabulary</div>
-      <div class="tables">
-        <div class="word-table"><h4>Mastered</h4><div id="tbl-mastered"></div></div>
-        <div class="word-table"><h4>Known</h4><div id="tbl-known"></div></div>
-        <div class="word-table"><h4>Struggling</h4><div id="tbl-struggling"></div></div>
-      </div>
-
-      <div class="section-title">Recent games</div>
-      <div class="timeline" id="timeline"></div>
-    </section>
+      <section class="section">
+        <h2 class="section-title" data-i18n="profile.experiments">Experiments</h2>
+        <div id="experiments" style="display: grid; gap: var(--space-3)"></div>
+      </section>
+    </main>
   </div>
 
   <script type="module" src="/js/profile.js"></script>

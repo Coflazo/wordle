@@ -1,211 +1,556 @@
-/* Game page — adaptive board, keyboard, info drawer. */
+/* Game screen.
+ *
+ * The whole layout is a height budget. The shell is a three-row grid whose
+ * middle row takes what is left, the board measures itself against that row,
+ * and the keyboard divides whatever width it is given. Nothing here has a fixed
+ * pixel size that a viewport can be too small for.
+ *
+ * What this replaces: a tile size of clamp(38px, 8vw, 64px) that ignored the
+ * column count entirely, so a ten-letter board was 450px wide regardless of
+ * screen and overflowed a 320px phone by 178px — hard-clipped, because
+ * overflow-x was hidden, so the first and last two letters of every guess were
+ * unreachable. And a keyboard whose rows had no flex-wrap and a 36px min-width
+ * floor, which put the Turkish Enter key entirely off-screen on any phone.
+ */
 
 .game-shell {
-  min-height: 100vh;
   display: grid;
-  grid-template-rows: auto 1fr auto;
+  /* An explicit minmax(0, 1fr) column, not the implicit `auto` one. An auto
+   * track sizes to its content, so on a very narrow viewport the shell grew
+   * past the window and took the whole page into a horizontal scroll with it. */
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  /* svh, not vh. On mobile Safari 100vh is the *large* viewport, taller than
+   * what is actually visible while the URL bar is showing, which pushed the
+   * keyboard below the fold on first paint. */
+  min-height: 100svh;
+  padding-bottom: var(--safe-bottom);
 }
 
+/* ------------------------------------------------------------- topbar */
+
 .topbar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 14px 20px;
-  border-bottom: 1px solid var(--border);
-  background: rgba(9, 11, 18, 0.85);
-  backdrop-filter: blur(8px);
   position: sticky;
   top: 0;
-  z-index: 5;
+  z-index: var(--z-sticky);
+  display: flex;
+  align-items: center;
+  /* Wraps rather than overflows. Below about 200px the wordmark is already
+   * hidden and two 44px buttons plus the chips still exceed the width; without
+   * this they push the whole page into a horizontal scroll. */
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  padding:
+    calc(var(--safe-top) + var(--space-2))
+    max(var(--space-3), var(--safe-right))
+    var(--space-2)
+    max(var(--space-3), var(--safe-left));
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--border);
 }
-.topbar .wordmark { font-size: 18px; }
-.topbar .avatar-shell { width: 34px; height: 34px; }
-.topbar .btn { padding: 8px 12px; min-height: 36px; }
+
+@supports not (backdrop-filter: blur(1px)) {
+  .topbar { background: var(--bg); }
+}
+
+.topbar .wordmark {
+  font-family: var(--font-heading);
+  font-size: var(--text-md);
+  font-weight: var(--weight-black);
+  letter-spacing: var(--tracking-wide);
+  color: var(--text);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.topbar-meta { display: flex; gap: var(--space-2); flex-wrap: wrap; min-width: 0; }
+.topbar-actions { display: flex; gap: var(--space-2); margin-inline-start: auto; }
+
+/* Hide the wordmark rather than the controls when space runs out. */
+@media (max-width: 26rem) {
+  .topbar .wordmark { display: none; }
+}
+
+/* --------------------------------------------------------------- main */
 
 .game-main {
   display: grid;
-  grid-template-columns: 1fr 340px;
-  gap: 24px;
-  padding: 24px;
-  align-items: start;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-3);
+  min-height: 0;
+  padding: var(--space-3) max(var(--space-3), var(--safe-left)) 0
+    max(var(--space-3), var(--safe-right));
 }
 
-.board-column { display: flex; flex-direction: column; align-items: center; gap: 20px; }
+.board-column {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: var(--space-2);
+  min-height: 0;
+  min-width: 0;
+  justify-items: center;
+}
 
-.stats-strip { display: flex; gap: 16px; align-items: center; font-family: var(--font-mono); }
+.status-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  /* flex-wrap is the point: three pills plus a button was about 300px, which
+   * clipped at 320px with no way to reach the overflow. */
+}
+
 .stat-pill {
-  padding: 6px 12px;
-  background: var(--surface-2);
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-3);
   border: 1px solid var(--border);
   border-radius: var(--radius-pill);
-  font-size: 12px;
-  letter-spacing: 0.06em;
-  color: var(--muted);
+  background: var(--surface);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-wide);
   text-transform: uppercase;
-  transition:
-    border-color 240ms var(--ease-out-soft),
-    color 240ms var(--ease-out-soft),
-    background 240ms var(--ease-out-soft),
-    transform 200ms var(--ease-spring);
+  color: var(--text-muted);
+  transition: border-color var(--dur-normal) var(--ease-out-soft),
+    color var(--dur-normal) var(--ease-out-soft);
 }
-.stat-pill b {
-  color: var(--text);
-  margin-left: 6px;
-  font-weight: 700;
-  display: inline-block;
-}
-.stat-pill.is-warning { border-color: var(--yellow); color: var(--yellow); }
-.stat-pill.is-danger { border-color: var(--danger); color: var(--danger); animation: pulse-danger 1.2s var(--ease-in-out) infinite; }
-@keyframes pulse-danger {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 107, 107, 0.4); }
-  50% { box-shadow: 0 0 0 10px rgba(255, 107, 107, 0); }
-}
-.stat-pill.did-change { animation: pop-bounce 300ms var(--ease-spring); }
-@keyframes pop-bounce {
-  0% { transform: scale(1); }
-  50% { transform: scale(1.08); }
-  100% { transform: scale(1); }
-}
+.stat-pill b { font-size: var(--text-sm); font-weight: var(--weight-bold); color: var(--text); }
+.stat-pill[data-tone="warning"] { border-color: var(--tile-present-bg); color: var(--tile-present-bg); }
+.stat-pill[data-tone="warning"] b { color: var(--tile-present-bg); }
+.stat-pill[data-tone="danger"] { border-color: var(--danger); color: var(--danger); }
+.stat-pill[data-tone="danger"] b { color: var(--danger); }
 
-/* Adaptive board */
-.board {
-  display: grid;
-  grid-template-columns: repeat(var(--cols, 5), var(--tile-size));
-  grid-auto-rows: var(--tile-size);
-  gap: var(--tile-gap);
-  padding: 8px;
-  border-radius: var(--radius);
-}
-.board.is-shaking { animation: shake 240ms ease; }
+/* --------------------------------------------------------------- board */
 
-.tile {
-  width: var(--tile-size);
-  height: var(--tile-size);
+.board-area {
+  /* A size container, so the board can measure both axes of the space it was
+   * actually given instead of guessing from the viewport. */
+  container-type: size;
+  container-name: board;
+  inline-size: 100%;
+  block-size: 100%;
+  min-height: 0;
   display: grid;
   place-items: center;
-  font-family: var(--font-mono);
-  font-weight: 700;
-  font-size: calc(var(--tile-size) * 0.48);
-  text-transform: uppercase;
-  border: 2px solid var(--gray);
-  border-radius: var(--radius-tile);
-  color: var(--text);
-  background: transparent;
-  transition: transform 120ms ease, border-color 120ms ease;
-  transform-style: preserve-3d;
+  /* Only ever engages below the legibility floor set on --tile: a ten-row
+   * board on a 240px-tall budget would otherwise compute 4px tiles. Scrolling
+   * a readable board beats staring at an unreadable one. */
+  overflow: auto;
 }
-.tile.is-filled { border-color: var(--muted-2); animation: pop 120ms ease; }
-.tile.is-green { background: var(--green); border-color: var(--green); color: #062015; }
-.tile.is-yellow { background: var(--yellow); border-color: var(--yellow); color: #2b1e00; }
-.tile.is-gray { background: var(--gray); border-color: var(--gray); color: var(--text); }
-.tile.is-flipping { animation: flip 350ms ease forwards; }
 
-@keyframes pop {
-  0% { transform: scale(0.9); }
-  50% { transform: scale(1.06); }
+.board {
+  --cols: 5;
+  --rows: 6;
+  --gap: clamp(2px, 1cqmin, 8px);
+  /* The board's own padding and border eat into the budget too. Leaving them
+   * out made the board overflow its track by 2*gap + 2px, which is how a
+   * ten-row board ended up 4px under the keyboard on a 950x700 window. */
+  --frame: calc(2 * var(--gap) + 2px);
+  /* Whichever axis runs out first decides the tile: capped so a 4K display
+   * does not render playing-card-sized letters, floored so a very small or
+   * very short viewport does not render illegible ones. Below the floor the
+   * board overflows and .board-area scrolls it. */
+  --tile: clamp(
+    var(--tile-min),
+    min(
+      (100cqw - var(--frame) - (var(--cols) - 1) * var(--gap)) / var(--cols),
+      (100cqh - var(--frame) - (var(--rows) - 1) * var(--gap)) / var(--rows)
+    ),
+    var(--tile-max)
+  );
+
+  display: grid;
+  grid-template-columns: repeat(var(--cols), var(--tile));
+  grid-auto-rows: var(--tile);
+  gap: var(--gap);
+  padding: var(--gap);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+/* Container query units are the right tool but not universal. Without them,
+ * fall back to viewport-relative sizing that still divides by the column count
+ * — worse on odd aspect ratios, but never overflowing. */
+@supports not (container-type: size) {
+  .board {
+    --gap: clamp(2px, 0.8vmin, 8px);
+    --tile: clamp(
+      var(--tile-min),
+      min(
+        (92vw - var(--frame) - (var(--cols) - 1) * var(--gap)) / var(--cols),
+        (50svh - var(--frame) - (var(--rows) - 1) * var(--gap)) / var(--rows)
+      ),
+      var(--tile-max)
+    );
+  }
+}
+
+.tile {
+  display: grid;
+  place-items: center;
+  position: relative;
+  border: 2px solid var(--tile-empty-border);
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--text);
+  font-family: var(--font-mono);
+  /* Sized from the tile, so it stays proportional at every scale. */
+  font-size: calc(var(--tile) * 0.46);
+  font-weight: var(--weight-bold);
+  line-height: 1;
+  text-transform: uppercase;
+  user-select: none;
+  transition:
+    border-color var(--dur-quick) var(--ease-out-soft),
+    background var(--dur-quick) var(--ease-out-soft),
+    color var(--dur-quick) var(--ease-out-soft);
+}
+
+.tile[data-filled="true"] {
+  border-color: var(--tile-filled-border);
+  animation: tile-pop var(--dur-quick) var(--ease-spring);
+}
+
+.tile[data-state="absent"] {
+  background: var(--tile-absent-bg);
+  border-color: var(--tile-absent-bg);
+  color: var(--tile-absent-ink);
+}
+.tile[data-state="present"] {
+  background: var(--tile-present-bg);
+  border-color: var(--tile-present-bg);
+  color: var(--tile-present-ink);
+}
+.tile[data-state="correct"] {
+  background: var(--tile-correct-bg);
+  border-color: var(--tile-correct-bg);
+  color: var(--tile-correct-ink);
+}
+
+/* A second, non-colour channel for the result. Colour alone fails WCAG 1.4.1,
+ * and the default correct/present pair measures 1.33:1 against each other —
+ * indistinguishable with deuteranopia. Always in the DOM for screen readers,
+ * visible when the theme asks for it. */
+.tile::after {
+  content: "";
+  position: absolute;
+  inset-block-end: 6%;
+  inset-inline-end: 8%;
+  font-size: calc(var(--tile) * 0.26);
+  line-height: 1;
+  opacity: var(--glyph-opacity);
+  pointer-events: none;
+}
+.tile[data-state="correct"]::after { content: "\25CF"; }  /* filled circle */
+.tile[data-state="present"]::after { content: "\25B2"; }  /* triangle */
+.tile[data-state="absent"]::after { content: "\00D7"; }   /* cross */
+
+.tile.is-revealing { animation: tile-flip var(--dur-reveal) var(--ease-in-out); }
+
+.board.is-invalid { animation: board-shake var(--dur-slow) var(--ease-in-out); }
+
+@keyframes tile-pop {
+  0% { transform: scale(0.86); }
+  60% { transform: scale(1.07); }
   100% { transform: scale(1); }
 }
-@keyframes flip {
+@keyframes tile-flip {
   0% { transform: rotateX(0); }
   50% { transform: rotateX(90deg); }
   100% { transform: rotateX(0); }
 }
-@keyframes shake {
-  0%,100% { transform: translateX(0); }
+@keyframes board-shake {
+  0%, 100% { transform: translateX(0); }
   20% { transform: translateX(-6px); }
   40% { transform: translateX(6px); }
   60% { transform: translateX(-4px); }
   80% { transform: translateX(4px); }
 }
 
-/* Info drawer */
+/* ------------------------------------------------------------ keyboard */
+
+.keyboard-area {
+  padding:
+    var(--space-2)
+    max(var(--space-2), var(--safe-right))
+    max(var(--space-2), var(--safe-bottom))
+    max(var(--space-2), var(--safe-left));
+}
+
+.keyboard {
+  display: grid;
+  gap: var(--kb-gap, clamp(3px, 0.8vmin, 6px));
+  width: 100%;
+  max-width: 34rem;
+  margin-inline: auto;
+}
+
+.kb-row {
+  display: flex;
+  gap: var(--kb-gap, clamp(3px, 0.8vmin, 6px));
+  justify-content: center;
+}
+
+.kb-key {
+  /* `min-width: 0` is the whole fix. The old rule floored keys at 36px with no
+   * wrap, so a twelve-key Turkish row needed 544px and simply ran off both
+   * edges of the screen, taking the Enter key with it. Flexing from a zero
+   * basis means the row always divides the width it has. */
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: var(--tap-min);
+  padding: 0 var(--space-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: clamp(0.75rem, 2.6vw, 1rem);
+  font-weight: var(--weight-bold);
+  text-transform: uppercase;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: clip;
+  transition:
+    background var(--dur-quick) var(--ease-out-soft),
+    color var(--dur-quick) var(--ease-out-soft),
+    transform var(--dur-instant) var(--ease-out-crisp);
+}
+
+.kb-key[data-wide="true"] {
+  flex-grow: 2.2;
+  font-size: clamp(0.5625rem, 2vw, 0.75rem);
+  letter-spacing: var(--tracking-wide);
+}
+
+.kb-key:hover:not(:disabled) { background: var(--surface-3); }
+.kb-key:active:not(:disabled) { transform: translateY(1px); }
+.kb-key:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.kb-key[data-state="absent"] {
+  background: var(--tile-absent-bg);
+  border-color: var(--tile-absent-bg);
+  /* Full-strength ink. The old rule used --muted on --gray, which measured
+   * 3.39:1 and failed AA. */
+  color: var(--tile-absent-ink);
+  opacity: 0.75;
+}
+.kb-key[data-state="present"] {
+  background: var(--tile-present-bg);
+  border-color: var(--tile-present-bg);
+  color: var(--tile-present-ink);
+}
+.kb-key[data-state="correct"] {
+  background: var(--tile-correct-bg);
+  border-color: var(--tile-correct-bg);
+  color: var(--tile-correct-ink);
+}
+
+.kb-key[data-state]::after {
+  content: "";
+  font-size: 0.7em;
+  margin-inline-start: 0.15em;
+  opacity: var(--glyph-opacity);
+}
+.kb-key[data-state="correct"]::after { content: "\25CF"; }
+.kb-key[data-state="present"]::after { content: "\25B2"; }
+
+.kb-key.is-pressed { animation: key-flash var(--dur-quick) var(--ease-out-crisp); }
+
+@keyframes key-flash {
+  0% { background: var(--accent); color: var(--bg); }
+  100% { background: inherit; }
+}
+
+/* ---------------------------------------------------------- result banner */
+
+.result-banner {
+  display: grid;
+  gap: var(--space-3);
+  justify-items: center;
+  padding: var(--space-4);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  box-shadow: var(--shadow-3);
+  text-align: center;
+}
+.result-banner[hidden] { display: none; }
+.result-banner[data-outcome="won"] { border-color: var(--tile-correct-bg); }
+.result-banner[data-outcome="lost"] { border-color: var(--danger); }
+
+.result-answer {
+  font-family: var(--font-mono);
+  font-size: var(--text-xl);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+}
+
+.result-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); justify-content: center; }
+
+/* ---------------------------------------------------------------- drawer */
+
 .drawer {
-  position: sticky;
-  top: 88px;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: var(--space-2);
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  padding: 18px;
-  max-height: calc(100vh - 120px);
-  overflow-y: auto;
-  transition:
-    transform 380ms var(--ease-out-soft),
-    box-shadow 380ms var(--ease-out-soft),
-    border-color 240ms var(--ease-out-soft);
+  padding: var(--space-4);
+  min-height: 0;
 }
-.drawer.is-populated { border-color: rgba(98,230,255,0.35); box-shadow: 0 12px 32px rgba(98,230,255,0.08); }
-.drawer h3 { margin: 0 0 4px 0; font-family: var(--font-heading); }
-.drawer .drawer-word { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--cyan); }
-.drawer .drawer-empty { color: var(--muted); font-size: 13px; }
-.drawer .entry { border-top: 1px dashed var(--border); padding-top: 10px; margin-top: 10px; animation: rise-in 400ms var(--ease-out-soft) both; }
-.drawer .entry:nth-child(2) { animation-delay: 60ms; }
-.drawer .entry:nth-child(3) { animation-delay: 120ms; }
-.drawer .entry:nth-child(4) { animation-delay: 180ms; }
-.drawer .entry .pos { color: var(--pink); font-family: var(--font-mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; }
-.drawer .entry .definition { margin: 4px 0; }
-.drawer .entry .example { color: var(--muted); font-style: italic; font-size: 13px; }
-.drawer .synonyms { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
-.drawer .synonyms .chip { font-size: 10px; padding: 2px 8px; color: var(--muted); }
 
-/* Keyboard */
-.keyboard {
-  padding: 10px 12px 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  align-items: center;
-  border-top: 1px solid var(--border);
-  background: rgba(9, 11, 18, 0.85);
-  backdrop-filter: blur(6px);
-}
-.kb-row { display: flex; gap: 6px; }
-.kb-key {
-  min-width: 36px;
-  height: 52px;
-  padding: 0 10px;
-  border-radius: var(--radius);
-  background: var(--surface-3);
-  color: var(--text);
+.drawer-header { display: flex; align-items: center; gap: var(--space-2); }
+.drawer-title { font-size: var(--text-md); }
+.drawer-word {
+  margin-inline-start: auto;
   font-family: var(--font-mono);
-  font-weight: 700;
+  color: var(--text-muted);
   text-transform: uppercase;
-  border: 1px solid var(--border);
-  transition: transform 80ms ease, background 120ms ease;
 }
-.kb-key.kb-wide { min-width: 68px; font-size: 12px; letter-spacing: 0.08em; }
-.kb-key:active { transform: translateY(1px); }
-.kb-key.is-green { background: var(--green); color: #062015; border-color: var(--green); }
-.kb-key.is-yellow { background: var(--yellow); color: #2b1e00; border-color: var(--yellow); }
-.kb-key.is-gray { background: var(--gray); color: var(--muted); border-color: var(--gray); }
+.drawer-body { overflow-y: auto; min-height: 0; display: grid; gap: var(--space-3); }
+.drawer-empty { color: var(--text-muted); font-size: var(--text-sm); }
+.drawer-handle { display: none; }
 
-.result-banner {
-  padding: 12px 16px;
-  border-radius: var(--radius);
+.definition { display: grid; gap: var(--space-1); }
+.definition-pos {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.definition-example { color: var(--text-muted); font-style: italic; }
+
+/* ------------------------------------------------------------- hint panel */
+
+.hint-panel {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-md);
   background: var(--surface-2);
-  border: 1px solid var(--border-strong);
-  text-align: center;
-  font-family: var(--font-heading);
 }
-.result-banner.win { border-color: var(--green); box-shadow: 0 0 24px rgba(60,203,127,0.24); }
-.result-banner.lose { border-color: var(--danger); }
-.result-banner .answer { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--cyan); margin-left: 6px; }
-.result-banner .actions { margin-top: 10px; display: flex; gap: 10px; justify-content: center; }
+.hint-row { display: flex; align-items: baseline; gap: var(--space-2); }
+.hint-word {
+  font-family: var(--font-mono);
+  font-weight: var(--weight-bold);
+  text-transform: uppercase;
+}
+.hint-bits { margin-inline-start: auto; font-size: var(--text-xs); color: var(--text-muted); }
 
-.burst { pointer-events: none; position: fixed; inset: 0; z-index: 20; overflow: hidden; }
-.burst .pixel {
-  position: absolute;
-  width: 8px; height: 8px;
-  border-radius: 1px;
-  animation: burst 900ms ease-out forwards;
-}
-@keyframes burst {
-  0% { transform: translate(-50%, -50%) scale(0.4); opacity: 1; }
-  100% { transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(1); opacity: 0; }
+/* ============================ responsive =============================== */
+
+/* Wide enough for a side rail. 60rem rather than a pixel breakpoint so the
+ * layout responds to the user's font size too. */
+@media (min-width: 60rem) {
+  .game-main {
+    grid-template-columns: minmax(0, 1fr) minmax(18rem, 22rem);
+    /* The old sheet used `1fr 340px`, and a 1fr track will not shrink below
+     * its content, so between 900 and 1122px a ten-letter board forced the
+     * grid wider than the viewport and was clipped. minmax(0, 1fr) is what
+     * makes the track actually flexible. */
+    padding-inline: max(var(--space-5), var(--safe-left));
+  }
+  .drawer { position: sticky; top: calc(var(--space-5) + 3.5rem); max-height: 70svh; }
 }
 
-@media (max-width: 900px) {
-  .game-main { grid-template-columns: 1fr; }
-  .drawer { position: fixed; left: 0; right: 0; bottom: 0; top: auto; border-radius: var(--radius-lg) var(--radius-lg) 0 0; max-height: 60vh; z-index: 8; transform: translateY(calc(100% - 44px)); transition: transform 220ms ease; }
-  .drawer.is-open { transform: translateY(0); }
-  .drawer .drawer-handle { text-align: center; padding-bottom: 6px; color: var(--muted); font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; }
+/* Landscape on a short viewport — phones held sideways, and small laptops.
+ * Board and keyboard sit side by side, because stacked they need about 730px
+ * of height in a 390px viewport and neither would be fully visible.
+ *
+ * The split has to happen on .game-shell, not .game-main: .keyboard-area is a
+ * sibling of .game-main, so a grid-column set on it resolves against the
+ * shell's tracks. Placing it on the wrong grid parked the keyboard in the
+ * top-right corner and starved the board of height until its tiles were 4px. */
+@media (orientation: landscape) and (max-height: 34rem) {
+  .game-shell {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 26rem);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  .topbar { grid-column: 1 / -1; padding-block: var(--space-1); }
+  .game-main { grid-column: 1; grid-row: 2; padding-block: var(--space-2); }
+  .keyboard-area {
+    grid-column: 2;
+    grid-row: 2;
+    align-self: center;
+    padding-block: var(--space-2);
+  }
+  .status-strip { font-size: var(--text-xs); }
+  /* No room for a side rail and no room for a bottom sheet either; the meaning
+   * panel returns as soon as the device is upright. */
+  .drawer { display: none; }
+  .kb-key { min-height: 2.25rem; }
+}
+
+/* Bottom sheet below the side-rail breakpoint. */
+@media (max-width: 59.99rem) {
+  .drawer {
+    position: fixed;
+    inset-inline: 0;
+    bottom: 0;
+    z-index: var(--z-drawer);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    /* dvh follows the browser chrome as it collapses, so the sheet is never
+     * taller than what is on screen. */
+    max-height: min(70dvh, 32rem);
+    padding-bottom: max(var(--space-4), var(--safe-bottom));
+    box-shadow: var(--shadow-4);
+    transform: translateY(calc(100% - 3rem));
+    transition: transform var(--dur-normal) var(--ease-out-soft);
+  }
+  .drawer[data-open="true"] { transform: translateY(0); }
+  .drawer-handle {
+    display: block;
+    width: 100%;
+    min-height: 3rem;
+    border: 0;
+    background: transparent;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    letter-spacing: var(--tracking-caps);
+    text-transform: uppercase;
+    cursor: pointer;
+  }
+  .drawer-handle::before {
+    content: "";
+    display: block;
+    width: 2.5rem;
+    height: 4px;
+    margin: 0 auto var(--space-2);
+    border-radius: var(--radius-pill);
+    background: var(--border-strong);
+  }
+  /* The sheet's peek strip used to sit on top of the keyboard's bottom row. */
+  .keyboard-area { padding-bottom: calc(3rem + max(var(--space-2), var(--safe-bottom))); }
+}
+
+/* Very wide displays: keep the board and the meaning panel within one eyeful
+ * instead of pinning them to opposite edges of a 3440px monitor. */
+@media (min-width: 100rem) {
+  .game-main { max-width: 90rem; margin-inline: auto; }
+}
+
+/* Coarse pointers get no hover lift — it only ever fires as a sticky state
+ * after a tap. */
+@media (hover: none) {
+  .btn:hover:not(:disabled),
+  .kb-key:hover:not(:disabled) { background: var(--surface-2); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tile.is-revealing,
+  .tile[data-filled="true"],
+  .board.is-invalid,
+  .kb-key.is-pressed { animation: none; }
+  .drawer { transition: none; }
 }

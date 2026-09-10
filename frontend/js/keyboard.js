@@ -1,80 +1,154 @@
-// Language-specific keyboards + key-state mirroring from board.
+/* On-screen keyboard.
+ *
+ * Layouts are per language. Sizing is entirely CSS — keys flex from a zero
+ * basis so a row always divides the width it is given. The old sheet floored
+ * keys at 36px with no wrap, which meant the Turkish bottom row needed 544px
+ * and simply ran off both edges of a phone, taking the Enter key with it. On a
+ * touch device with no physical Enter there was then no way to submit at all.
+ */
 
-const LAYOUTS = {
+import { t, upper } from '/js/i18n.js';
+
+export const LAYOUTS = {
   en: [
-    ['q','w','e','r','t','y','u','i','o','p'],
-    ['a','s','d','f','g','h','j','k','l'],
-    ['ENTER','z','x','c','v','b','n','m','BACK'],
+    ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p'],
+    ['a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l'],
+    ['ENTER', 'z', 'x', 'c', 'v', 'b', 'n', 'm', 'BACK'],
   ],
   tr: [
-    ['q','w','e','r','t','y','u','ı','o','p','ğ','ü'],
-    ['a','s','d','f','g','h','j','k','l','ş','i'],
-    ['ENTER','z','x','c','v','b','n','m','ö','ç','BACK'],
+    ['e', 'r', 't', 'y', 'u', 'ı', 'o', 'p', 'ğ', 'ü'],
+    ['a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', 'ş', 'i'],
+    ['ENTER', 'z', 'c', 'v', 'b', 'n', 'm', 'ö', 'ç', 'BACK'],
   ],
   de: [
-    ['q','w','e','r','t','z','u','i','o','p','ü'],
-    ['a','s','d','f','g','h','j','k','l','ö','ä'],
-    ['ENTER','y','x','c','v','b','n','m','ß','BACK'],
+    ['q', 'w', 'e', 'r', 't', 'z', 'u', 'i', 'o', 'p', 'ü'],
+    ['a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', 'ö', 'ä'],
+    ['ENTER', 'y', 'x', 'c', 'v', 'b', 'n', 'm', 'ß', 'BACK'],
   ],
 };
 
-const PRIORITY = { green: 3, yellow: 2, gray: 1 };
+const PRIORITY = { absent: 1, present: 2, correct: 3 };
 
-export function buildKeyboard(root, language, onKey) {
-  root.innerHTML = '';
-  const layout = LAYOUTS[language] || LAYOUTS.en;
-  for (const row of layout) {
-    const rowEl = document.createElement('div');
-    rowEl.className = 'kb-row';
-    for (const key of row) {
-      const btn = document.createElement('button');
-      btn.className = 'kb-key';
-      btn.type = 'button';
-      btn.dataset.key = key;
-      if (key === 'ENTER' || key === 'BACK') {
-        btn.classList.add('kb-wide');
-        btn.textContent = key === 'ENTER' ? 'Enter' : '⌫';
-      } else {
-        btn.textContent = key;
+export class Keyboard {
+  constructor(root, onKey) {
+    this.root = root;
+    this.onKey = onKey;
+    this.keys = new Map();
+    this.locale = 'en';
+    this.disabled = false;
+
+    // One delegated listener instead of one per key. The old code bound a
+    // listener per button inside a function that began by clearing innerHTML,
+    // which leaks on every rebuild.
+    // pointerdown, not click: click adds 50-300ms of perceived latency on
+    // touch, and a tapped button keeps DOM focus so a later Space press
+    // re-fires it — which used to retype the last letter.
+    this.root.addEventListener('pointerdown', (event) => {
+      const button = event.target.closest('.kb-key');
+      if (!button || this.disabled) return;
+      event.preventDefault();
+      this.flash(button);
+      this.onKey(button.dataset.key);
+    });
+  }
+
+  build(language) {
+    this.locale = language;
+    this.keys.clear();
+    const layout = LAYOUTS[language] || LAYOUTS.en;
+    // Announce Turkish and German keys in their own language rather than
+    // letting a screen reader read them with an English voice.
+    this.root.setAttribute('lang', language);
+    this.root.setAttribute('role', 'group');
+    this.root.setAttribute('aria-label', t('setup.language'));
+
+    const fragment = document.createDocumentFragment();
+    for (const row of layout) {
+      const rowEl = document.createElement('div');
+      rowEl.className = 'kb-row';
+      for (const key of row) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'kb-key';
+        button.dataset.key = key;
+        if (key === 'ENTER' || key === 'BACK') {
+          button.dataset.wide = 'true';
+          button.textContent = key === 'ENTER' ? t('game.enter') : '⌫';
+          // The backspace glyph had no accessible name at all.
+          button.setAttribute('aria-label', key === 'ENTER' ? t('game.enter') : t('game.backspace'));
+        } else {
+          button.textContent = upper(key, language);
+          button.setAttribute('aria-label', upper(key, language));
+        }
+        rowEl.appendChild(button);
+        this.keys.set(key, button);
       }
-      btn.addEventListener('click', (ev) => {
-        // Ripple origin at click point (or centered on non-mouse events).
-        const rect = btn.getBoundingClientRect();
-        const x = ((ev.clientX ?? rect.left + rect.width / 2) - rect.left) / rect.width;
-        const y = ((ev.clientY ?? rect.top + rect.height / 2) - rect.top) / rect.height;
-        btn.style.setProperty('--px', `${x * 100}%`);
-        btn.style.setProperty('--py', `${y * 100}%`);
-        flashKey(btn);
-        onKey(key);
-      });
-      rowEl.appendChild(btn);
+      fragment.appendChild(rowEl);
     }
-    root.appendChild(rowEl);
+    this.root.replaceChildren(fragment);
+  }
+
+  /** Merge letter states, keeping the strongest result seen for each letter. */
+  applyResult(letters, marks) {
+    for (let i = 0; i < letters.length; i += 1) {
+      const button = this.keys.get(letters[i]);
+      if (!button) continue;
+      const next = marks[i] === 'green' ? 'correct' : marks[i] === 'yellow' ? 'present' : 'absent';
+      const current = button.dataset.state;
+      if (!current || PRIORITY[next] > PRIORITY[current]) {
+        button.dataset.state = next;
+      }
+    }
+  }
+
+  flash(button) {
+    button.classList.remove('is-pressed');
+    void button.offsetWidth;
+    button.classList.add('is-pressed');
+    setTimeout(() => button.classList.remove('is-pressed'), 200);
+  }
+
+  flashLetter(letter) {
+    const button = this.keys.get(letter);
+    if (button) this.flash(button);
+  }
+
+  /** Lock every key. Keys used to stay live after the game ended and during
+   *  the reveal, silently doing nothing with no visual feedback at all. */
+  setDisabled(disabled) {
+    this.disabled = disabled;
+    for (const button of this.keys.values()) {
+      button.disabled = disabled;
+    }
+  }
+
+  reset() {
+    for (const button of this.keys.values()) delete button.dataset.state;
   }
 }
 
-export function flashKey(btn) {
-  btn.classList.remove('is-pressed');
-  void btn.offsetWidth; // reflow
-  btn.classList.add('is-pressed');
-  setTimeout(() => btn.classList.remove('is-pressed'), 260);
-}
+/**
+ * Map a physical keypress to a game letter.
+ * Returns 'ENTER', 'BACK', a single letter, or null.
+ */
+export function keyFromEvent(event, language) {
+  if (event.metaKey || event.ctrlKey || event.altKey) return null;
+  if (event.key === 'Enter') return 'ENTER';
+  if (event.key === 'Backspace') return 'BACK';
+  if (event.key.length !== 1) return null;
 
-export function flashKeyByChar(root, ch) {
-  const btn = root.querySelector(`.kb-key[data-key="${ch}"]`);
-  if (btn) flashKey(btn);
-}
-
-export function updateKeyStates(root, guess, mask) {
-  // Merge new marks with existing ones, keep the strongest.
-  for (let i = 0; i < guess.length; i++) {
-    const ch = guess[i];
-    const m = mask[i];
-    const btn = root.querySelector(`.kb-key[data-key="${ch}"]`);
-    if (!btn) continue;
-    const current = ['green', 'yellow', 'gray'].find((k) => btn.classList.contains(`is-${k}`));
-    if (current && PRIORITY[current] >= PRIORITY[m]) continue;
-    btn.classList.remove('is-green', 'is-yellow', 'is-gray');
-    btn.classList.add(`is-${m}`);
+  let ch;
+  if (language === 'tr') {
+    // Turkish casing is not the invariant mapping: 'I' lowercases to 'ı' and
+    // 'İ' to 'i'. The old regex also omitted uppercase Ç, Ğ and Ş entirely, so
+    // three of the six Turkish letters were silently dropped with Caps Lock on.
+    if (event.key === 'İ') ch = 'i';
+    else if (event.key === 'I') ch = 'ı';
+    else ch = event.key.toLocaleLowerCase('tr-TR');
+  } else {
+    ch = event.key.toLocaleLowerCase(language === 'de' ? 'de-DE' : 'en-US');
   }
+
+  const layout = LAYOUTS[language] || LAYOUTS.en;
+  return layout.some((row) => row.includes(ch)) ? ch : null;
 }

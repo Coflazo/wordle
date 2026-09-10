@@ -1,53 +1,95 @@
-<!doctype html>
-<html lang="en">
+<!DOCTYPE html>
+<html lang="en" data-theme="system">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Oflaz Wordle</title>
+  <meta name="description" content="Guess the word.">
+  <meta name="theme-color" content="#090B12" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#F6F8FC" media="(prefers-color-scheme: light)">
+  <meta name="color-scheme" content="dark light">
+
   <link rel="icon" type="image/svg+xml" href="/assets/icons/favicon.svg">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&family=Space+Grotesk:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="apple-touch-icon" href="/assets/icons/favicon.svg">
+  <link rel="manifest" href="/assets/manifest.json">
+
+  <link rel="stylesheet" href="/css/tokens.css">
   <link rel="stylesheet" href="/css/base.css">
-  <link rel="stylesheet" href="/css/motion.css">
   <link rel="stylesheet" href="/css/game.css">
+
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" media="print" onload="this.media='all'"
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&family=Space+Grotesk:wght@600;700;800&display=swap">
+
+  <link rel="modulepreload" href="/js/i18n.js">
+  <link rel="modulepreload" href="/js/api.js">
+  <link rel="modulepreload" href="/js/state.js">
+  <link rel="modulepreload" href="/js/board.js">
+  <link rel="modulepreload" href="/js/keyboard.js">
+  <link rel="modulepreload" href="/js/theme.js">
 </head>
 <body>
+  <a class="skip-link" href="#board" data-i18n="nav.skipToGame">Skip to the game board</a>
+
   <div class="game-shell">
     <header class="topbar">
-      <a href="/" class="wordmark" style="color:var(--text);text-decoration:none">Oflaz Wordle</a>
-      <span class="chip" id="lang-chip">EN</span>
-      <span class="chip" id="difficulty-chip">CLASSIC</span>
-      <div class="spacer"></div>
-      <div class="avatar-shell" id="topbar-avatar"></div>
-      <span id="profile-name" class="mono small muted"></span>
-      <a href="/profile" class="btn btn-secondary">Profile</a>
-      <a href="/" class="btn btn-ghost" title="New game">↻</a>
+      <a class="wordmark" href="/" data-i18n="app.name">Oflaz Wordle</a>
+      <div class="topbar-meta">
+        <span class="chip" id="chip-language"></span>
+        <span class="chip" id="chip-difficulty"></span>
+      </div>
+      <div class="topbar-actions">
+        <span class="avatar-slot" id="topbar-avatar" aria-hidden="true"></span>
+        <span class="visually-hidden" id="topbar-name"></span>
+        <a class="btn btn-ghost" href="/profile" data-i18n="nav.profile">Profile</a>
+        <a class="btn btn-ghost" href="/" data-i18n-aria-label="nav.newGame" data-i18n-title="nav.newGame">↻</a>
+      </div>
     </header>
 
     <main class="game-main">
-      <section class="board-column">
-        <div class="stats-strip">
-          <span class="stat-pill" id="length-pill">length<b id="length-value">5</b></span>
-          <span class="stat-pill" id="attempts-pill">attempts left<b id="attempts-value">6</b></span>
-          <button class="btn btn-secondary" id="info-btn" title="Meaning">(i)</button>
-        </div>
-        <div id="board" class="board" style="--cols:5"></div>
-        <div id="result-banner" class="result-banner hidden"></div>
-      </section>
+      <div class="board-column">
+        <!-- h1 was missing entirely; the first heading on the page was an h3
+             inside the drawer, so heading navigation started at level 3. -->
+        <h1 class="visually-hidden" data-i18n="app.name">Oflaz Wordle</h1>
 
-      <aside class="drawer" id="drawer" aria-live="polite">
-        <div class="drawer-handle">Meaning</div>
-        <h3 id="drawer-title">Meaning</h3>
-        <div class="drawer-word" id="drawer-word">—</div>
-        <div id="drawer-source" class="small muted mono" style="margin:6px 0 12px"></div>
-        <div id="drawer-body">
-          <div class="drawer-empty">Need help understanding a word? Play a guess, then tap <b>(i)</b>.</div>
+        <div class="status-strip" id="status-strip">
+          <span class="stat-pill">
+            <span data-i18n="game.length">Length</span> <b id="stat-length">5</b>
+          </span>
+          <span class="stat-pill" id="attempts-pill" data-tone="ok">
+            <span data-i18n="game.attemptsLeft">Guesses left</span> <b id="stat-attempts">6</b>
+          </span>
+          <button class="btn btn-ghost" id="meaning-btn" type="button" data-i18n="game.openMeaning">
+            Show meaning
+          </button>
+          <button class="btn btn-ghost" id="hint-btn" type="button" data-i18n="game.getHint">
+            Get a hint
+          </button>
         </div>
+
+        <div class="board-area">
+          <div class="board" id="board"></div>
+        </div>
+
+        <section class="result-banner" id="result-banner" hidden aria-live="polite"></section>
+      </div>
+
+      <aside class="drawer" id="drawer" data-open="false">
+        <button class="drawer-handle" id="drawer-handle" type="button"
+                aria-expanded="false" aria-controls="drawer-body" data-i18n="game.meaning">
+          Meaning
+        </button>
+        <div class="drawer-header">
+          <h2 class="drawer-title" id="drawer-title" data-i18n="game.meaning">Meaning</h2>
+          <span class="drawer-word" id="drawer-word"></span>
+        </div>
+        <div class="drawer-body" id="drawer-body"></div>
       </aside>
     </main>
 
-    <section class="keyboard" id="keyboard"></section>
+    <div class="keyboard-area">
+      <div class="keyboard" id="keyboard"></div>
+    </div>
   </div>
 
   <script type="module" src="/js/game.js"></script>

@@ -1,0 +1,377 @@
+/* Design tokens.
+ *
+ * Two layers on purpose. The palette layer names raw values; the semantic layer
+ * names roles. Components only ever reference the semantic layer, so a theme
+ * swaps roles without touching a single component rule.
+ *
+ * Previously colours were re-typed as raw rgba() in 20 places and again in four
+ * JS files, there was no spacing or type scale at all, and z-index ran 0, 1, 5,
+ * 8, 10, 20, 9999 with no relationship between the numbers.
+ */
+
+:root {
+  color-scheme: dark;
+
+  /* ---------------------------------------------------------- palette */
+  --pal-ink-950: #05070d;
+  --pal-ink-900: #090b12;
+  --pal-ink-850: #0e1119;
+  --pal-ink-800: #111521;
+  --pal-ink-700: #171c2b;
+  --pal-ink-600: #1e2438;
+  --pal-ink-500: #2a3149;
+  --pal-ink-400: #3a4052;
+  --pal-ink-300: #5c6478;
+  --pal-ink-200: #8b94a7;
+  --pal-ink-100: #c3cad8;
+  --pal-ink-050: #f4f7fb;
+  --pal-white: #ffffff;
+
+  --pal-green-400: #3ccb7f;
+  --pal-green-500: #2fb26a;
+  --pal-green-600: #1f8b50;
+  --pal-green-ink: #062015;
+
+  --pal-amber-400: #f4c95d;
+  --pal-amber-500: #dcae3c;
+  --pal-amber-ink: #2b1e00;
+
+  --pal-cyan-400: #62e6ff;
+  --pal-pink-400: #ff5da2;
+  --pal-purple-400: #8d7cff;
+  --pal-red-400: #ff6b6b;
+  --pal-red-500: #d64545;
+
+  /* Okabe-Ito, chosen because these two stay distinguishable under
+   * deuteranopia, protanopia and tritanopia. The default green/amber pair
+   * measures 1.33:1 against each other, which is why the colourblind theme
+   * exists at all. */
+  --pal-cb-blue: #0072b2;
+  --pal-cb-blue-ink: #ffffff;
+  --pal-cb-orange: #e69f00;
+  --pal-cb-orange-ink: #241600;
+
+  /* ------------------------------------------------------ space scale */
+  /* 4px base. Named by step, not by pixel value, so a density change is one
+   * edit here rather than a search through every component. */
+  --space-0: 0;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+  --space-8: 4rem;
+
+  /* ------------------------------------------------------- type scale */
+  /* Fluid, so a 320px phone and a 4K display both get sensible measures
+   * without a breakpoint. rem-based, so browser font-size preferences work —
+   * the old sheet set html{font-size:15px} and used px everywhere, which meant
+   * user font scaling had literally no effect anywhere in the app. */
+  --text-xs: clamp(0.6875rem, 0.66rem + 0.14vw, 0.75rem);
+  --text-sm: clamp(0.8125rem, 0.79rem + 0.11vw, 0.875rem);
+  --text-md: clamp(0.9375rem, 0.91rem + 0.14vw, 1rem);
+  --text-lg: clamp(1.0625rem, 1rem + 0.31vw, 1.25rem);
+  --text-xl: clamp(1.25rem, 1.1rem + 0.75vw, 1.625rem);
+  --text-2xl: clamp(1.5rem, 1.2rem + 1.5vw, 2.25rem);
+  --text-3xl: clamp(1.875rem, 1.3rem + 2.9vw, 3.25rem);
+
+  --leading-tight: 1.15;
+  --leading-snug: 1.35;
+  --leading-normal: 1.55;
+
+  --tracking-tight: -0.02em;
+  --tracking-normal: 0;
+  --tracking-wide: 0.06em;
+  --tracking-caps: 0.14em;
+
+  --weight-normal: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+  --weight-black: 800;
+
+  --font-heading: "Space Grotesk", "Inter", system-ui, -apple-system, sans-serif;
+  --font-body: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  /* ----------------------------------------------------------- radius */
+  --radius-xs: 3px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-pill: 999px;
+
+  /* -------------------------------------------------------- elevation */
+  --shadow-1: 0 1px 2px rgb(0 0 0 / 0.28);
+  --shadow-2: 0 4px 12px rgb(0 0 0 / 0.32);
+  --shadow-3: 0 12px 32px rgb(0 0 0 / 0.42);
+  --shadow-4: 0 28px 72px rgb(0 0 0 / 0.5);
+
+  /* ---------------------------------------------------------- z-index */
+  --z-base: 0;
+  --z-raised: 10;
+  --z-sticky: 100;
+  --z-drawer: 200;
+  --z-overlay: 300;
+  --z-toast: 400;
+
+  /* ----------------------------------------------------------- motion */
+  --ease-out-soft: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-out-crisp: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  --dur-instant: 90ms;
+  --dur-quick: 160ms;
+  --dur-normal: 240ms;
+  --dur-slow: 380ms;
+  --dur-reveal: 420ms;
+  --reveal-stagger: 90ms;
+
+  /* --------------------------------------------------------- sizing */
+  /* 44px is the Apple HIG and WCAG 2.5.5 floor. Nothing interactive goes
+   * below it; the old topbar buttons explicitly overrode it to 36px. */
+  --tap-min: 44px;
+  --control-height: 44px;
+  --tile-min: 1.375rem;   /* 22px: the smallest a letter stays readable */
+  --tile-max: 4rem;
+  --measure: 68ch;
+  --page-max: 78rem;
+
+  /* Safe areas. Zero unless the viewport meta opts in with viewport-fit=cover,
+   * which all three pages now do. */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+
+  /* ------------------------------------------------------- semantic */
+  --bg: var(--pal-ink-900);
+  --bg-elevated: var(--pal-ink-850);
+  --surface: var(--pal-ink-800);
+  --surface-2: var(--pal-ink-700);
+  --surface-3: var(--pal-ink-600);
+  --surface-hover: var(--pal-ink-500);
+
+  --text: var(--pal-ink-050);
+  --text-muted: var(--pal-ink-200);
+  /* One step lighter than the old --muted-2 #5C6478, which measured 3.08:1 on
+   * --surface and failed AA at the 12px it was used at. */
+  --text-subtle: var(--pal-ink-100);
+
+  --border: rgb(255 255 255 / 0.14);
+  /* Non-text UI boundaries need 3:1 per WCAG 1.4.11. The old
+   * rgba(255,255,255,0.12) composited to about 1.4:1. */
+  --border-strong: rgb(255 255 255 / 0.32);
+  --focus-ring: var(--pal-cyan-400);
+
+  --accent: var(--pal-cyan-400);
+  --accent-2: var(--pal-pink-400);
+  --accent-3: var(--pal-purple-400);
+  --danger: var(--pal-red-400);
+  --danger-surface: rgb(255 107 107 / 0.12);
+
+  --tile-empty-border: var(--pal-ink-400);
+  --tile-filled-border: var(--pal-ink-300);
+  --tile-absent-bg: var(--pal-ink-400);
+  --tile-absent-ink: var(--pal-ink-050);
+  --tile-present-bg: var(--pal-amber-400);
+  --tile-present-ink: var(--pal-amber-ink);
+  --tile-correct-bg: var(--pal-green-400);
+  --tile-correct-ink: var(--pal-green-ink);
+
+  --btn-primary-bg: linear-gradient(180deg, var(--pal-green-400), var(--pal-green-500));
+  --btn-primary-ink: var(--pal-green-ink);
+  --btn-primary-glow: rgb(60 203 127 / 0.32);
+
+  /* Shown on tiles and keys in contrast and colourblind themes. Colour alone
+   * fails WCAG 1.4.1, and a deuteranope cannot separate the default green from
+   * the default amber at all. */
+  --glyph-opacity: 0;
+}
+
+/* ---------------------------------------------------------------- light */
+
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --bg: #f6f8fc;
+  --bg-elevated: #ffffff;
+  --surface: #ffffff;
+  --surface-2: #eef1f7;
+  --surface-3: #e3e8f1;
+  --surface-hover: #d8dee9;
+
+  --text: #12151d;
+  --text-muted: #4a5265;
+  --text-subtle: #6b7387;
+
+  --border: rgb(16 20 30 / 0.14);
+  --border-strong: rgb(16 20 30 / 0.36);
+  --focus-ring: #0b6ea8;
+
+  --accent: #0b7fa8;
+  --accent-2: #c2246d;
+  --accent-3: #5b46d6;
+  --danger: var(--pal-red-500);
+  --danger-surface: rgb(214 69 69 / 0.1);
+
+  --tile-empty-border: #c2cad8;
+  --tile-filled-border: #8a94a8;
+  --tile-absent-bg: #8a94a8;
+  --tile-absent-ink: #ffffff;
+  --tile-present-bg: #d9a520;
+  --tile-present-ink: #241a00;
+  --tile-correct-bg: var(--pal-green-600);
+  --tile-correct-ink: #ffffff;
+
+  --btn-primary-bg: linear-gradient(180deg, var(--pal-green-500), var(--pal-green-600));
+  --btn-primary-ink: #ffffff;
+  --btn-primary-glow: rgb(31 139 80 / 0.28);
+
+  --shadow-1: 0 1px 2px rgb(16 20 30 / 0.08);
+  --shadow-2: 0 4px 12px rgb(16 20 30 / 0.1);
+  --shadow-3: 0 12px 32px rgb(16 20 30 / 0.12);
+  --shadow-4: 0 28px 72px rgb(16 20 30 / 0.16);
+}
+
+/* ------------------------------------------------------- high contrast */
+
+:root[data-theme="contrast"] {
+  color-scheme: dark;
+
+  --bg: #000000;
+  --bg-elevated: #000000;
+  --surface: #0a0a0a;
+  --surface-2: #141414;
+  --surface-3: #1f1f1f;
+  --surface-hover: #2b2b2b;
+
+  --text: #ffffff;
+  --text-muted: #e6e6e6;
+  --text-subtle: #cfcfcf;
+
+  --border: rgb(255 255 255 / 0.55);
+  --border-strong: #ffffff;
+  --focus-ring: #ffd400;
+
+  --accent: #4cc9ff;
+  --accent-2: #ff7ab8;
+  --accent-3: #b3a4ff;
+  --danger: #ff8080;
+  --danger-surface: rgb(255 128 128 / 0.18);
+
+  --tile-empty-border: #8a8a8a;
+  --tile-filled-border: #ffffff;
+  --tile-absent-bg: #3a3a3a;
+  --tile-absent-ink: #ffffff;
+  --tile-present-bg: #ffd400;
+  --tile-present-ink: #000000;
+  --tile-correct-bg: #00d47a;
+  --tile-correct-ink: #000000;
+
+  --btn-primary-bg: #00d47a;
+  --btn-primary-ink: #000000;
+  --btn-primary-glow: rgb(0 212 122 / 0.5);
+
+  --glyph-opacity: 1;
+}
+
+/* ---------------------------------------------------------- colourblind */
+
+:root[data-theme="colorblind"] {
+  color-scheme: dark;
+
+  --tile-present-bg: var(--pal-cb-orange);
+  --tile-present-ink: var(--pal-cb-orange-ink);
+  --tile-correct-bg: var(--pal-cb-blue);
+  --tile-correct-ink: var(--pal-cb-blue-ink);
+
+  --accent: #56b4e9;
+  --btn-primary-bg: linear-gradient(180deg, #0083cc, var(--pal-cb-blue));
+  --btn-primary-ink: #ffffff;
+  --btn-primary-glow: rgb(0 114 178 / 0.36);
+
+  --glyph-opacity: 1;
+}
+
+/* Follow the OS when the player has not chosen. `data-theme` is stamped on
+ * <html> by theme.js and always wins, in both directions. */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]),
+  :root[data-theme="system"] {
+    color-scheme: light;
+
+    --bg: #f6f8fc;
+    --bg-elevated: #ffffff;
+    --surface: #ffffff;
+    --surface-2: #eef1f7;
+    --surface-3: #e3e8f1;
+    --surface-hover: #d8dee9;
+
+    --text: #12151d;
+    --text-muted: #4a5265;
+    --text-subtle: #6b7387;
+
+    --border: rgb(16 20 30 / 0.14);
+    --border-strong: rgb(16 20 30 / 0.36);
+    --focus-ring: #0b6ea8;
+
+    --accent: #0b7fa8;
+    --accent-2: #c2246d;
+    --accent-3: #5b46d6;
+    --danger: var(--pal-red-500);
+    --danger-surface: rgb(214 69 69 / 0.1);
+
+    --tile-empty-border: #c2cad8;
+    --tile-filled-border: #8a94a8;
+    --tile-absent-bg: #8a94a8;
+    --tile-absent-ink: #ffffff;
+    --tile-present-bg: #d9a520;
+    --tile-present-ink: #241a00;
+    --tile-correct-bg: var(--pal-green-600);
+    --tile-correct-ink: #ffffff;
+
+    --btn-primary-bg: linear-gradient(180deg, var(--pal-green-500), var(--pal-green-600));
+    --btn-primary-ink: #ffffff;
+    --btn-primary-glow: rgb(31 139 80 / 0.28);
+
+    --shadow-1: 0 1px 2px rgb(16 20 30 / 0.08);
+    --shadow-2: 0 4px 12px rgb(16 20 30 / 0.1);
+    --shadow-3: 0 12px 32px rgb(16 20 30 / 0.12);
+    --shadow-4: 0 28px 72px rgb(16 20 30 / 0.16);
+  }
+}
+
+/* Windows High Contrast and forced-colors mode. Hand the whole palette over to
+ * the system rather than fighting it. */
+@media (forced-colors: active) {
+  :root {
+    --bg: Canvas;
+    --bg-elevated: Canvas;
+    --surface: Canvas;
+    --surface-2: Canvas;
+    --surface-3: Canvas;
+    --text: CanvasText;
+    --text-muted: CanvasText;
+    --text-subtle: CanvasText;
+    --border: CanvasText;
+    --border-strong: CanvasText;
+    --focus-ring: Highlight;
+    --accent: LinkText;
+    --tile-empty-border: GrayText;
+    --tile-filled-border: CanvasText;
+    --tile-absent-bg: Canvas;
+    --tile-absent-ink: GrayText;
+    --tile-present-bg: Canvas;
+    --tile-present-ink: CanvasText;
+    --tile-correct-bg: Highlight;
+    --tile-correct-ink: HighlightText;
+    --btn-primary-bg: ButtonFace;
+    --btn-primary-ink: ButtonText;
+    --glyph-opacity: 1;
+  }
+}

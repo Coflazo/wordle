@@ -1,75 +1,162 @@
-// Board factory: builds and updates the adaptive tile grid.
+/* The guess grid.
+ *
+ * Tiles are held in a 2D array built once. The previous version ran a
+ * `querySelector` with an attribute selector per tile per keystroke — ten
+ * document queries for every letter typed on a ten-wide board, and up to
+ * ninety when replaying a finished game at page load.
+ *
+ * The grid also carries real semantics now. It used to be bare <div>s whose
+ * only signal was background-color: nothing was announced, and the correct and
+ * present colours measure 1.33:1 against each other, so the result was
+ * unreadable with deuteranopia and invisible to a screen reader.
+ */
 
-export function buildBoard(root, rows, cols) {
-  root.innerHTML = '';
-  root.style.setProperty('--cols', cols);
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
-      const tile = document.createElement('div');
-      tile.className = 'tile';
-      tile.dataset.row = String(r);
-      tile.dataset.col = String(c);
-      root.appendChild(tile);
+import { t, upper } from '/js/i18n.js';
+import { prefersReducedMotion } from '/js/theme.js';
+
+const STATE_NAMES = { correct: 'markCorrect', present: 'markPresent', absent: 'markAbsent' };
+
+export class Board {
+  constructor(root) {
+    this.root = root;
+    this.tiles = [];
+    this.cols = 5;
+    this.rows = 6;
+    this.timers = [];
+    this.locale = 'en';
+  }
+
+  build(cols, rows, locale = 'en') {
+    this.clearTimers();
+    this.cols = cols;
+    this.rows = rows;
+    this.locale = locale;
+    this.tiles = [];
+
+    this.root.style.setProperty('--cols', String(cols));
+    this.root.style.setProperty('--rows', String(rows));
+    this.root.setAttribute('role', 'grid');
+    this.root.setAttribute('aria-readonly', 'true');
+    this.root.setAttribute('aria-label', t('game.boardLabel', { rows, cols }));
+
+    // One fragment, one insertion. The old build appended up to 100 nodes into
+    // the live DOM one at a time.
+    const fragment = document.createDocumentFragment();
+    for (let r = 0; r < rows; r += 1) {
+      const row = document.createElement('div');
+      row.className = 'board-row';
+      row.setAttribute('role', 'row');
+      row.style.display = 'contents';
+      const rowTiles = [];
+      for (let c = 0; c < cols; c += 1) {
+        const tile = document.createElement('div');
+        tile.className = 'tile';
+        tile.setAttribute('role', 'gridcell');
+        tile.setAttribute('aria-label', t('game.tileEmpty'));
+        row.appendChild(tile);
+        rowTiles.push(tile);
+      }
+      this.tiles.push(rowTiles);
+      fragment.appendChild(row);
+    }
+    this.root.replaceChildren(fragment);
+  }
+
+  clearTimers() {
+    for (const id of this.timers) clearTimeout(id);
+    this.timers = [];
+  }
+
+  later(fn, delay) {
+    const id = setTimeout(fn, delay);
+    this.timers.push(id);
+    return id;
+  }
+
+  setTypedRow(row, letters) {
+    const rowTiles = this.tiles[row];
+    if (!rowTiles) return;
+    for (let c = 0; c < this.cols; c += 1) {
+      const tile = rowTiles[c];
+      const ch = letters[c] || '';
+      const shown = ch ? upper(ch, this.locale) : '';
+      if (tile.textContent !== shown) {
+        tile.textContent = shown;
+        tile.dataset.filled = ch ? 'true' : 'false';
+        tile.setAttribute('aria-label', ch ? shown : t('game.tileEmpty'));
+      }
     }
   }
-}
 
-export function tileAt(root, row, col) {
-  return root.querySelector(`.tile[data-row="${row}"][data-col="${col}"]`);
-}
+  /**
+   * Flip a row, one tile at a time. Resolves when the last tile has settled,
+   * so the caller can hold the input lock and delay the result banner until
+   * the board has actually finished — the old code used a flat 800ms, which on
+   * a ten-letter win announced the answer while four tiles were still blank.
+   */
+  revealRow(row, letters, marks) {
+    const rowTiles = this.tiles[row];
+    if (!rowTiles) return Promise.resolve();
 
-export function setTypedRow(root, row, letters, cols) {
-  for (let c = 0; c < cols; c++) {
-    const tile = tileAt(root, row, c);
-    if (!tile) continue;
-    const ch = letters[c] || '';
-    tile.textContent = ch;
-    tile.classList.toggle('is-filled', Boolean(ch));
+    const reduced = prefersReducedMotion();
+    const stagger = reduced ? 0 : this.readMs('--reveal-stagger', 90);
+    const flip = reduced ? 0 : this.readMs('--dur-reveal', 420);
+
+    return new Promise((resolve) => {
+      for (let c = 0; c < letters.length; c += 1) {
+        const tile = rowTiles[c];
+        if (!tile) continue;
+        const letter = upper(letters[c], this.locale);
+        const mark = marks[c];
+
+        this.later(() => {
+          tile.textContent = letter;
+          tile.dataset.filled = 'true';
+          if (!reduced) tile.classList.add('is-revealing');
+          // Swap the colour at the midpoint of the flip, so the tile turns
+          // while it is edge-on rather than in full view.
+          this.later(() => {
+            tile.dataset.state = mark === 'green' ? 'correct' : mark === 'yellow' ? 'present' : 'absent';
+            tile.setAttribute(
+              'aria-label',
+              t(`game.${STATE_NAMES[tile.dataset.state]}`, { letter })
+            );
+          }, flip / 2);
+          this.later(() => tile.classList.remove('is-revealing'), flip);
+        }, c * stagger);
+      }
+      this.later(resolve, Math.max(0, (letters.length - 1) * stagger + flip));
+    });
   }
-}
 
-export function revealRow(root, row, letters, mask) {
-  for (let c = 0; c < letters.length; c++) {
-    const tile = tileAt(root, row, c);
-    if (!tile) continue;
-    const ch = letters[c];
-    const m = mask[c];
-    setTimeout(() => {
-      // Store lowercase; CSS `text-transform: uppercase` on `.tile` handles
-      // display casing, and respects the ancestor `lang` attribute so
-      // Turkish maps i → İ and ı → I correctly.
-      tile.textContent = ch;
-      tile.classList.add('is-flipping');
-      setTimeout(() => {
-        tile.classList.remove('is-filled');
-        tile.classList.add(`is-${m}`);
-      }, 175);
-      setTimeout(() => tile.classList.remove('is-flipping'), 360);
-    }, c * 120);
+  readMs(name, fallback) {
+    const raw = getComputedStyle(this.root).getPropertyValue(name).trim();
+    const value = parseFloat(raw);
+    return Number.isFinite(value) ? (raw.endsWith('ms') ? value : value * 1000) : fallback;
   }
-}
 
-export function shakeRow(root) {
-  root.classList.add('is-shaking');
-  setTimeout(() => root.classList.remove('is-shaking'), 260);
-}
-
-export function pixelBurst() {
-  const layer = document.createElement('div');
-  layer.className = 'burst';
-  document.body.appendChild(layer);
-  const colors = ['#3CCB7F', '#F4C95D', '#62E6FF', '#8D7CFF', '#FF5DA2'];
-  for (let i = 0; i < 80; i++) {
-    const px = document.createElement('div');
-    px.className = 'pixel';
-    const angle = Math.random() * Math.PI * 2;
-    const dist = 80 + Math.random() * 260;
-    px.style.background = colors[i % colors.length];
-    px.style.left = `${50 + (Math.random() - 0.5) * 8}%`;
-    px.style.top = `${50 + (Math.random() - 0.5) * 8}%`;
-    px.style.setProperty('--dx', `${Math.cos(angle) * dist}px`);
-    px.style.setProperty('--dy', `${Math.sin(angle) * dist}px`);
-    layer.appendChild(px);
+  /** A sentence describing a scored row, for the live region. */
+  describeRow(rowNumber, letters, marks) {
+    const detail = letters
+      .map((ch, i) => {
+        const mark = marks[i];
+        const state = mark === 'green' ? 'correct' : mark === 'yellow' ? 'present' : 'absent';
+        return t(`game.${STATE_NAMES[state]}`, { letter: upper(ch, this.locale) });
+      })
+      .join(', ');
+    return t('game.guessResult', {
+      row: rowNumber,
+      word: upper(letters.join(''), this.locale),
+      detail,
+    });
   }
-  setTimeout(() => layer.remove(), 1000);
+
+  shake() {
+    if (prefersReducedMotion()) return;
+    this.root.classList.remove('is-invalid');
+    // Reading offsetWidth forces the style recalc that restarts the animation.
+    void this.root.offsetWidth;
+    this.root.classList.add('is-invalid');
+    this.later(() => this.root.classList.remove('is-invalid'), 500);
+  }
 }

@@ -1,207 +1,331 @@
-// Welcome page controller: language + difficulty + character picker + Start Game.
+/* Welcome screen controller. */
 
-import { api } from '/js/api.js';
+import { api, ApiError } from '/js/api.js';
 import { State } from '/js/state.js';
-import { mountAvatars, setAvatar } from '/js/avatar.js';
+import { toast } from '/js/toast.js';
+import { mountAvatar, ACCESSORIES, AURA_COLORS, HAIR_STYLES, SHIRT_COLORS } from '/js/avatar.js';
+import { initFlags, getFlag, track, flush } from '/js/analytics.js';
+import { initTheme, setTheme, THEMES } from '/js/theme.js';
+import { applyTranslations, initLocale, setLocale, t } from '/js/i18n.js';
 
-const DEFAULT_CHARACTER = {
-  name: 'Oflaz',
-  base: 'pixel-human',
-  hair: 'short-black',
-  accessory: 'badge-o',
-  shirt: 'midnight',
-  aura: 'green-glow',
+const el = (id) => document.getElementById(id);
+
+const dom = {
+  languagePicker: el('language-picker'),
+  difficultyPicker: el('difficulty-picker'),
+  lengthPicker: el('length-picker'),
+  themePicker: el('theme-picker'),
+  characterRow: el('character-row'),
+  editor: el('custom-editor'),
+  nameInput: el('custom-name'),
+  hairSelect: el('custom-hair'),
+  accessorySelect: el('custom-accessory'),
+  shirtRow: el('shirt-row'),
+  auraRow: el('aura-row'),
+  preview: el('avatar-preview'),
+  previewSmall: el('avatar-preview-small'),
+  startBtn: el('start-btn'),
+  defaultAvatar: el('avatar-default'),
 };
 
-const state = {
+const setup = {
   language: State.sessionLanguage(),
   difficulty: State.sessionDifficulty(),
-  wordLength: State.get().session_word_length || 'random',
-  characterMode: State.get().session_character_mode || 'default',
-  customCharacter:
-    State.get().session_custom_character || {
-      name: 'You',
-      base: 'pixel-human',
-      hair: 'short-brown',
-      accessory: 'glasses',
-      shirt: 'cyan',
-      aura: 'cyan-glow',
-    },
+  length: State.sessionLength(),
+  theme: null,
+  characterMode: State.get('session_character_mode', 'default'),
+  custom: State.get('session_custom_character', {
+    name: '', hair: 'short_black', accessory: 'badge',
+    shirt: SHIRT_COLORS[0], aura: AURA_COLORS[0],
+  }),
 };
 
-function setSegmented(container, value) {
-  container.querySelectorAll('button').forEach((b) => {
-    b.classList.toggle('is-active', b.dataset.value === value);
+/* ------------------------------------------------------- radio groups */
+
+/**
+ * Wire a group of buttons as a real radio group.
+ * The markup previously declared role="tablist" with plain buttons inside —
+ * invalid, since a tablist needs children with role="tab", and selection was
+ * carried only by a CSS class. A screen reader announced "button EN, button
+ * TR, button DE" with no indication of which was chosen.
+ */
+function bindRadioGroup(container, value, onChange) {
+  const buttons = Array.from(container.querySelectorAll('button'));
+
+  const select = (next, focus = false) => {
+    for (const button of buttons) {
+      const active = button.dataset.value === String(next);
+      button.setAttribute('aria-checked', active ? 'true' : 'false');
+      button.tabIndex = active ? 0 : -1;
+      if (active && focus) button.focus();
+    }
+    onChange(next);
+  };
+
+  for (const button of buttons) {
+    button.setAttribute('role', 'radio');
+    button.type = 'button';
+    button.addEventListener('click', () => select(button.dataset.value));
+  }
+
+  // Arrow-key roving focus, which is what makes a radio group usable without
+  // a mouse.
+  container.addEventListener('keydown', (event) => {
+    const index = buttons.findIndex((b) => b === document.activeElement);
+    if (index < 0) return;
+    let next = null;
+    if (event.key === 'ArrowRight' || event.key === 'ArrowDown') next = (index + 1) % buttons.length;
+    if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') next = (index - 1 + buttons.length) % buttons.length;
+    if (event.key === 'Home') next = 0;
+    if (event.key === 'End') next = buttons.length - 1;
+    if (next === null) return;
+    event.preventDefault();
+    select(buttons[next].dataset.value, true);
   });
+
+  select(value);
+  return select;
 }
 
-function setCharacterTile(mode) {
-  document.querySelectorAll('.character-tile').forEach((t) => {
-    t.classList.toggle('is-active', t.dataset.character === mode);
-  });
-  const editor = document.getElementById('custom-editor');
-  editor.classList.toggle('hidden', mode !== 'custom');
+/* ----------------------------------------------------------- character */
+
+function currentAvatarConfig() {
+  if (setup.characterMode === 'default') {
+    return { name: t('setup.defaultName') };
+  }
+  return { ...setup.custom, name: setup.custom.name || t('setup.customName') };
 }
 
-function refreshEditorPreview() {
-  const el = document.getElementById('editor-preview');
-  if (el) setAvatar(el, state.customCharacter);
-  const tile = document.getElementById('custom-avatar-preview');
-  if (tile) setAvatar(tile, state.customCharacter);
+function renderPreview() {
+  const config = { ...setup.custom, name: setup.custom.name || t('setup.customName') };
+  mountAvatar(dom.preview, currentAvatarConfig(), setup.characterMode);
+  // The tile in the character row always shows the custom build, so the choice
+  // between "Oflaz" and "your own" is a visible comparison.
+  mountAvatar(dom.previewSmall, config, 'custom');
 }
 
-function bindSegmented(id, key) {
-  const el = document.getElementById(id);
-  setSegmented(el, state[key]);
-  el.addEventListener('click', (ev) => {
-    const btn = ev.target.closest('button[data-value]');
-    if (!btn) return;
-    state[key] = btn.dataset.value;
-    setSegmented(el, state[key]);
-  });
+function selectCharacter(mode) {
+  setup.characterMode = mode;
+  for (const tile of dom.characterRow.querySelectorAll('.character-tile')) {
+    tile.setAttribute('aria-checked', tile.dataset.value === mode ? 'true' : 'false');
+    tile.tabIndex = tile.dataset.value === mode ? 0 : -1;
+  }
+  dom.editor.open = mode === 'custom';
+  renderPreview();
+  State.set({ session_character_mode: mode });
+  track('character_mode_changed', { mode });
 }
 
-function bindCharacterTiles() {
-  document.querySelectorAll('.character-tile').forEach((t) => {
-    t.addEventListener('click', () => {
-      state.characterMode = t.dataset.character;
-      setCharacterTile(state.characterMode);
+function buildSwatches(container, colors, key, label) {
+  container.replaceChildren();
+  for (const color of colors) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'swatch';
+    button.style.setProperty('--swatch-color', color);
+    button.dataset.value = color;
+    // These were eleven unlabelled buttons whose only content was an inline
+    // background colour, announced as "button" eleven times.
+    button.setAttribute('aria-label', `${label} ${color}`);
+    button.setAttribute('aria-pressed', setup.custom[key] === color ? 'true' : 'false');
+    button.addEventListener('click', () => {
+      setup.custom[key] = color;
+      for (const other of container.querySelectorAll('.swatch')) {
+        other.setAttribute('aria-pressed', other.dataset.value === color ? 'true' : 'false');
+      }
+      persistCustom();
+      renderPreview();
     });
-    t.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); t.click(); }
-    });
-  });
-  setCharacterTile(state.characterMode);
+    container.appendChild(button);
+  }
 }
 
-function bindEditor() {
-  const nameInput = document.getElementById('custom-name');
-  nameInput.value = state.customCharacter.name || '';
-  nameInput.addEventListener('input', () => {
-    state.customCharacter.name = nameInput.value.trim() || 'You';
-    refreshEditorPreview();
-  });
-
-  const hair = document.getElementById('custom-hair');
-  hair.value = state.customCharacter.hair;
-  hair.addEventListener('change', () => {
-    state.customCharacter.hair = hair.value;
-    refreshEditorPreview();
-  });
-
-  const acc = document.getElementById('custom-accessory');
-  acc.value = state.customCharacter.accessory;
-  acc.addEventListener('change', () => {
-    state.customCharacter.accessory = acc.value;
-    refreshEditorPreview();
-  });
-
-  document.querySelectorAll('#custom-shirt .swatch').forEach((s) => {
-    s.classList.toggle('is-active', s.dataset.shirt === state.customCharacter.shirt);
-    s.addEventListener('click', () => {
-      document.querySelectorAll('#custom-shirt .swatch').forEach((x) => x.classList.remove('is-active'));
-      s.classList.add('is-active');
-      state.customCharacter.shirt = s.dataset.shirt;
-      refreshEditorPreview();
-    });
-  });
-
-  document.querySelectorAll('#custom-aura .swatch').forEach((s) => {
-    s.classList.toggle('is-active', s.dataset.aura === state.customCharacter.aura);
-    s.addEventListener('click', () => {
-      document.querySelectorAll('#custom-aura .swatch').forEach((x) => x.classList.remove('is-active'));
-      s.classList.add('is-active');
-      state.customCharacter.aura = s.dataset.aura;
-      refreshEditorPreview();
-    });
-  });
+function fillSelect(select, values, prefix) {
+  select.replaceChildren();
+  for (const value of values) {
+    const option = document.createElement('option');
+    option.value = value;
+    option.textContent = t(`${prefix}.${value}`);
+    select.appendChild(option);
+  }
 }
+
+function persistCustom() {
+  State.set({ session_custom_character: setup.custom });
+}
+
+/* --------------------------------------------------------------- start */
 
 async function ensureProfile() {
-  const activeId = State.activeProfileId();
-  const isCustom = state.characterMode === 'custom';
-  const character = isCustom ? state.customCharacter : DEFAULT_CHARACTER;
-  const name = character.name || (isCustom ? 'You' : 'Oflaz');
-
-  // If we already have this profile matching the character type + name, reuse it.
-  if (activeId) {
+  const existing = State.activeProfileId();
+  if (existing) {
     try {
-      const existing = await api.getProfile(activeId);
-      if (existing) {
-        await api.updateProfile(activeId, {
-          name,
-          avatar_type: isCustom ? 'custom' : 'default',
-          avatar_config: character,
-          preferred_language: state.language,
-        });
-        return existing.id;
-      }
-    } catch (_) {
-      // fall through to create
+      await api.getProfile(existing);
+      await api.updateProfile(existing, {
+        avatar_type: setup.characterMode,
+        avatar_config: currentAvatarConfig(),
+        preferred_language: setup.language,
+        theme: setup.theme,
+      });
+      return existing;
+    } catch (err) {
+      if (!(err instanceof ApiError) || err.code !== 'profile_not_found') throw err;
+      State.clear('active_profile_id');
     }
   }
 
-  const created = await api.createProfile({
-    name,
-    avatar_type: isCustom ? 'custom' : 'default',
-    avatar_config: character,
-    preferred_language: state.language,
+  const profile = await api.createProfile({
+    name: currentAvatarConfig().name,
+    avatar_type: setup.characterMode,
+    avatar_config: currentAvatarConfig(),
+    preferred_language: setup.language,
+    theme: setup.theme,
   });
-  State.setActiveProfileId(created.id);
-  return created.id;
+  State.set({ active_profile_id: profile.id });
+  return profile.id;
 }
 
 async function startGame() {
-  const btn = document.getElementById('start-btn');
-  btn.disabled = true;
-  const originalText = btn.textContent;
-  btn.textContent = 'Loading …';
+  dom.startBtn.disabled = true;
+  const original = dom.startBtn.textContent;
+  dom.startBtn.textContent = t('setup.starting');
+
   try {
     const profileId = await ensureProfile();
-    State.set({
-      session_language: state.language,
-      session_difficulty: state.difficulty,
-      session_word_length: state.wordLength,
-      session_character_mode: state.characterMode,
-      session_custom_character: state.customCharacter,
-    });
-    const gameRequest = {
+    const payload = {
       profile_id: profileId,
-      language: state.language,
-      difficulty: state.difficulty,
+      language: setup.language,
+      difficulty: setup.difficulty,
     };
-    if (state.wordLength !== 'random') {
-      gameRequest.word_length = Number(state.wordLength);
-    }
-    const game = await api.startGame(gameRequest);
-    State.set({ last_game_id: game.game_id });
+    if (setup.length) payload.word_length = Number(setup.length);
+
+    const game = await api.startGame(payload);
+    State.set({
+      last_game_id: game.game_id,
+      session_language: setup.language,
+      session_difficulty: setup.difficulty,
+      session_length: setup.length,
+    });
+    track('game_started', {
+      language: setup.language,
+      difficulty: setup.difficulty,
+      requested_length: setup.length || 'mix',
+      actual_length: game.word_length,
+      character_mode: setup.characterMode,
+    }, game.game_id);
+    await flush();
     window.location.href = '/game';
-  } catch (e) {
-    console.error(e);
-    alert('Could not start the game: ' + e.message);
-    btn.disabled = false;
-    btn.textContent = originalText;
+  } catch (err) {
+    const code = err instanceof ApiError ? err.code : 'generic';
+    // Was `alert('Could not start the game: ' + e.message)` with the raw
+    // backend string, in a modal that blocks the page.
+    toast(`${t('errors.startFailed')} ${t(`errors.${code}`) || ''}`.trim(), { tone: 'error' });
+    dom.startBtn.disabled = false;
+    dom.startBtn.textContent = original;
   }
 }
 
-function resetStartButton() {
-  const btn = document.getElementById('start-btn');
-  if (!btn) return;
-  btn.disabled = false;
-  btn.textContent = 'Start Game';
+/* ------------------------------------------------------------------ boot */
+
+function main() {
+  initLocale(setup.language);
+  setup.theme = initTheme(State.get('session_theme'));
+  applyTranslations();
+
+  bindRadioGroup(dom.languagePicker, setup.language, (value) => {
+    setup.language = value;
+    State.set({ session_language: value });
+    // The interface follows the language being played, which is the whole
+    // point — picking Turkish used to change only the word bank.
+    setLocale(value);
+    applyTranslations();
+    refreshDynamicLabels();
+    track('option_changed', { picker: 'language', value });
+  });
+
+  bindRadioGroup(dom.difficultyPicker, setup.difficulty, (value) => {
+    setup.difficulty = value;
+    State.set({ session_difficulty: value });
+    track('option_changed', { picker: 'difficulty', value });
+  });
+
+  bindRadioGroup(dom.lengthPicker, setup.length || 'mix', (value) => {
+    setup.length = value === 'mix' ? null : Number(value);
+    State.set({ session_length: setup.length });
+    track('option_changed', { picker: 'length', value });
+  });
+
+  bindRadioGroup(dom.themePicker, setup.theme, (value) => {
+    setup.theme = setTheme(value);
+    State.set({ session_theme: setup.theme });
+    track('option_changed', { picker: 'theme', value });
+  });
+
+  for (const tile of dom.characterRow.querySelectorAll('.character-tile')) {
+    tile.setAttribute('role', 'radio');
+    tile.addEventListener('click', () => selectCharacter(tile.dataset.value));
+    tile.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        selectCharacter(tile.dataset.value);
+      }
+    });
+  }
+
+  fillSelect(dom.hairSelect, Object.keys(HAIR_STYLES), 'hair');
+  fillSelect(dom.accessorySelect, ACCESSORIES, 'accessory');
+  dom.hairSelect.value = setup.custom.hair;
+  dom.accessorySelect.value = setup.custom.accessory;
+  dom.nameInput.value = setup.custom.name || '';
+
+  dom.hairSelect.addEventListener('change', () => {
+    setup.custom.hair = dom.hairSelect.value;
+    persistCustom();
+    renderPreview();
+  });
+  dom.accessorySelect.addEventListener('change', () => {
+    setup.custom.accessory = dom.accessorySelect.value;
+    persistCustom();
+    renderPreview();
+  });
+  dom.nameInput.addEventListener('input', () => {
+    setup.custom.name = dom.nameInput.value.slice(0, 24);
+    persistCustom();
+    renderPreview();
+  });
+
+  buildSwatches(dom.shirtRow, SHIRT_COLORS, 'shirt', t('setup.shirt'));
+  buildSwatches(dom.auraRow, AURA_COLORS, 'aura', t('setup.aura'));
+
+  mountAvatar(dom.defaultAvatar, { name: t('setup.defaultName') }, 'default');
+  selectCharacter(setup.characterMode);
+
+  dom.startBtn.addEventListener('click', startGame);
+
+  initFlags(State.activeProfileId()).then(() => {
+    if (getFlag('customize_open') === 'open') dom.editor.open = true;
+    if (getFlag('default_length') === 'five' && setup.length === null) {
+      // The server also enforces this; reflecting it here keeps the control
+      // honest about what pressing Start will actually do.
+      const five = dom.lengthPicker.querySelector('[data-value="5"]');
+      if (five) five.click();
+    }
+    track('welcome_viewed', {});
+  });
+
+  dom.editor.addEventListener('toggle', () => {
+    track('advanced_toggled', { open: dom.editor.open });
+  });
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-  mountAvatars();
-  bindSegmented('language-picker', 'language');
-  bindSegmented('difficulty-picker', 'difficulty');
-  bindSegmented('length-picker', 'wordLength');
-  bindCharacterTiles();
-  bindEditor();
-  refreshEditorPreview();
-  document.getElementById('start-btn').addEventListener('click', startGame);
-});
+function refreshDynamicLabels() {
+  fillSelect(dom.hairSelect, Object.keys(HAIR_STYLES), 'hair');
+  fillSelect(dom.accessorySelect, ACCESSORIES, 'accessory');
+  dom.hairSelect.value = setup.custom.hair;
+  dom.accessorySelect.value = setup.custom.accessory;
+  buildSwatches(dom.shirtRow, SHIRT_COLORS, 'shirt', t('setup.shirt'));
+  buildSwatches(dom.auraRow, AURA_COLORS, 'aura', t('setup.aura'));
+  renderPreview();
+}
 
-// If the browser restored this page from the bfcache (e.g. after the game page
-// redirected home), the button might still say "Loading …". Reset it.
-window.addEventListener('pageshow', resetStartButton);
+main();

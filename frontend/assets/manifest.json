@@ -1,0 +1,19 @@
+{
+  "name": "Oflaz Wordle",
+  "short_name": "Wordle",
+  "description": "Guess words from 5 to 10 letters in English, Turkish or German, then learn what they mean.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#090B12",
+  "theme_color": "#090B12",
+  "icons": [
+    {
+      "src": "/assets/icons/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
