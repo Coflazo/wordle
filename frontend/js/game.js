@@ -6,8 +6,9 @@ import { Board } from '/js/board.js';
 import { Keyboard, keyFromEvent } from '/js/keyboard.js';
 import { renderAvatar } from '/js/avatar.js';
 import { announce, toast } from '/js/toast.js';
+import { registerServiceWorker, watchConnection } from '/js/offline.js';
 import { initFlags, getFlag, track, flush } from '/js/analytics.js';
-import { initTheme } from '/js/theme.js';
+import { initTheme, getTheme } from '/js/theme.js';
 import {
   applyTranslations, formatNumber, initLocale, lower, plural, setLocale, t, upper,
 } from '/js/i18n.js';
@@ -125,6 +126,34 @@ function showResult() {
   profileBtn.textContent = t('nav.profile');
 
   actions.append(meaningBtn, againBtn, profileBtn);
+
+  // Only for the daily puzzle: a result grid is only worth sharing when
+  // everyone was solving the same word.
+  if (game.daily_number != null && game.share_text) {
+    const shareBtn = document.createElement('button');
+    shareBtn.type = 'button';
+    shareBtn.className = 'btn';
+    shareBtn.textContent = t('game.share');
+    shareBtn.addEventListener('click', async () => {
+      try {
+        if (navigator.share) {
+          await navigator.share({ text: game.share_text });
+        } else {
+          await navigator.clipboard.writeText(game.share_text);
+          toast(t('game.shareCopied'), { tone: 'success' });
+        }
+        track('result_shared', { number: game.daily_number }, game.game_id);
+      } catch {
+        // The player dismissed the share sheet, or the clipboard is blocked.
+      }
+    });
+    actions.appendChild(shareBtn);
+
+    const badge = document.createElement('span');
+    badge.className = 'chip';
+    badge.textContent = t('game.dailyNumber', { number: game.daily_number });
+    dom.banner.appendChild(badge);
+  }
   dom.banner.append(heading, answerLine, actions);
 
   // Move focus so a keyboard or screen-reader user lands on the outcome
@@ -219,6 +248,17 @@ async function submitGuess() {
     announce(session.board.describeRow(res.turn, letters, res.result));
 
     if (game.status !== 'active') {
+      // Refetch before showing the banner. The guess response carries the
+      // outcome but not the share grid, which only exists once the game is
+      // over and is rendered in the player's own tile colours.
+      try {
+        session.game = await api.getGame(
+          game.game_id,
+          getTheme() === 'colorblind' ? 'colorblind' : 'default'
+        );
+      } catch {
+        // Keep the local copy; the banner just loses the share button.
+      }
       showResult();
     }
   } catch (err) {
@@ -531,7 +571,7 @@ async function main() {
   }
 
   try {
-    session.game = await api.getGame(gameId);
+    session.game = await api.getGame(gameId, getTheme() === 'colorblind' ? 'colorblind' : 'default');
   } catch (err) {
     State.clear('last_game_id');
     window.location.replace('/');
@@ -576,3 +616,6 @@ async function main() {
 }
 
 main();
+
+registerServiceWorker();
+watchConnection();

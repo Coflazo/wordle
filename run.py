@@ -18,8 +18,10 @@ from __future__ import annotations
 import argparse
 import os
 import platform
+import secrets
 import shutil
 import signal
+import socket
 import subprocess
 import sys
 import threading
@@ -186,43 +188,88 @@ def ensure_solverd(rebuild: bool) -> bool:
     if SOLVERD.exists() and not rebuild:
         say("Solver sidecar is built")
         return True
-    if IS_WINDOWS:
-        # CPython does not expose AF_UNIX on Windows, so the daemon cannot be
-        # reached from Python there. Hints run in-process instead.
-        say("Skipping the solver sidecar on Windows; hints run in-process")
-        return False
-    if shutil.which("make") is None or find_compiler() is None:
-        say("Skipping the solver sidecar (no make or compiler); hints run in-process")
+    if find_compiler() is None:
+        say("Skipping the solver sidecar (no compiler); hints run in-process")
         return False
     step("Building the solver sidecar")
     try:
-        run(["make", "-s"], cwd=ROOT / "solverd", stdout=subprocess.DEVNULL)
+        if IS_WINDOWS:
+            # No make on a stock Windows box; drive the compiler directly.
+            _build_solverd_msvc()
+        else:
+            if shutil.which("make") is None:
+                say("Skipping the solver sidecar (no make); hints run in-process")
+                return False
+            run(["make", "-s"], cwd=ROOT / "solverd", stdout=subprocess.DEVNULL)
         return True
-    except subprocess.CalledProcessError:
-        say("The sidecar failed to build; hints will run in-process")
+    except (subprocess.CalledProcessError, OSError) as exc:
+        say(f"The sidecar failed to build ({exc}); hints will run in-process")
         return False
 
 
-def start_solverd() -> subprocess.Popen | None:
+def _build_solverd_msvc() -> None:
+    """Compile solverd with whatever cl.exe setuptools would use."""
+    import setuptools.msvc as msvc  # noqa: F401  (ensures the env is discoverable)
+
+    build_dir = ROOT / "solverd" / "build"
+    build_dir.mkdir(parents=True, exist_ok=True)
+    sources = [str(ROOT / "solverd" / "main.cpp")] + [
+        str(p) for p in sorted((NATIVE_SRC / "src").glob("*.cpp"))
+    ]
+    run(
+        ["cl", "/nologo", "/std:c++20", "/O2", "/EHsc", "/MD",
+         f"/I{NATIVE_SRC / 'include'}", f"/Fo{build_dir}\\", *sources,
+         "/link", "ws2_32.lib", f"/OUT:{SOLVERD}"],
+        cwd=ROOT / "solverd",
+        stdout=subprocess.DEVNULL,
+    )
+
+
+def start_solverd() -> tuple[subprocess.Popen | None, dict]:
+    """Start the sidecar and return the environment the server needs to reach it.
+
+    Unix socket where Python can open one. On Windows CPython does not expose
+    socket.AF_UNIX, so the daemon listens on loopback TCP instead, with a token
+    both sides share — loopback alone is reachable by every account on the box.
+    """
     if not SOLVERD.exists():
-        return None
+        return None, {}
+
     run_dir = ROOT / "run"
     run_dir.mkdir(exist_ok=True)
-    socket_path = run_dir / "solverd.sock"
+    env: dict[str, str] = {}
+
+    if hasattr(socket, "AF_UNIX"):
+        socket_path = run_dir / "solverd.sock"
+        args = [str(SOLVERD), "--socket", str(socket_path), "--banks", str(BANKS)]
+        ready = lambda: socket_path.exists()  # noqa: E731
+        env["WORDLE_SOLVERD_SOCKET"] = str(socket_path)
+    else:
+        with socket.socket() as probe:
+            probe.bind(("127.0.0.1", 0))
+            port = probe.getsockname()[1]
+        token = secrets.token_urlsafe(24)
+        args = [str(SOLVERD), "--tcp", str(port), "--token", token, "--banks", str(BANKS)]
+        ready = lambda: _port_open(port)  # noqa: E731
+        env["WORDLE_SOLVERD_TCP"] = f"127.0.0.1:{port}"
+        env["WORDLE_SOLVERD_TOKEN"] = token
+
     proc = subprocess.Popen(
-        [str(SOLVERD), "--socket", str(socket_path), "--banks", str(BANKS)],
-        cwd=ROOT,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.STDOUT,
+        args, cwd=ROOT, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT
     )
-    # Give it a moment to bind before uvicorn probes it.
-    for _ in range(20):
-        if socket_path.exists():
-            break
+    for _ in range(40):
+        if ready():
+            return proc, env
         if proc.poll() is not None:
-            return None
+            return None, {}
         time.sleep(0.1)
-    return proc
+    return proc, env
+
+
+def _port_open(port: int) -> bool:
+    with socket.socket() as probe:
+        probe.settimeout(0.2)
+        return probe.connect_ex(("127.0.0.1", port)) == 0
 
 
 def open_browser_when_ready(url: str) -> None:
@@ -270,9 +317,9 @@ def main() -> int:
         print("\nSetup complete. Start it with:  python run.py")
         return 0
 
-    solverd = start_solverd()
+    solverd, solverd_env = start_solverd()
     if solverd is not None:
-        say("Solver sidecar running")
+        say(f"Solver sidecar running ({'tcp' if 'WORDLE_SOLVERD_TCP' in solverd_env else 'socket'})")
 
     url = f"http://{'localhost' if args.host in ('127.0.0.1', '0.0.0.0') else args.host}:{args.port}"
     if not args.no_browser:
@@ -284,7 +331,7 @@ def main() -> int:
     if args.reload:
         cmd.append("--reload")
 
-    server = subprocess.Popen(cmd, cwd=ROOT)
+    server = subprocess.Popen(cmd, cwd=ROOT, env={**os.environ, **solverd_env})
     try:
         server.wait()
     except KeyboardInterrupt:

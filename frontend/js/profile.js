@@ -4,6 +4,7 @@ import { api, ApiError } from '/js/api.js';
 import { State } from '/js/state.js';
 import { mountAvatar } from '/js/avatar.js';
 import { toast } from '/js/toast.js';
+import { registerServiceWorker, watchConnection } from '/js/offline.js';
 import { initTheme } from '/js/theme.js';
 import { prefersReducedMotion } from '/js/theme.js';
 import {
@@ -487,3 +488,6 @@ async function main() {
 }
 
 main();
+
+registerServiceWorker();
+watchConnection();

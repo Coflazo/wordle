@@ -5,9 +5,10 @@ hints during one game are answered from RAM. When it is not running the same
 work is done in-process through wordle_core: slower on the opening turn and
 without the cache, but a hint never fails just because a daemon is down.
 
-On Windows this always takes the in-process path. The daemon itself speaks
-AF_UNIX and Windows has supported it since 10 1803, but CPython does not expose
-`socket.AF_UNIX` there, so there is no way to dial it from Python.
+Two transports. A Unix domain socket by default, so file permissions decide who
+can ask. On Windows CPython does not expose `socket.AF_UNIX`, so the daemon is
+started on loopback TCP instead and both ends share a token — a loopback port is
+reachable by every account on the machine, a mode-0600 socket file is not.
 """
 
 from __future__ import annotations
@@ -31,12 +32,41 @@ class SolverUnavailable(RuntimeError):
     pass
 
 
-def _request(line: str, timeout: float) -> dict:
-    path = str(config.SOLVERD_SOCKET)
+def _tcp_endpoint():
+    if not config.SOLVERD_TCP:
+        return None
+    host, _, port = config.SOLVERD_TCP.rpartition(":")
+    try:
+        return (host or "127.0.0.1", int(port))
+    except ValueError:
+        return None
+
+
+def available() -> bool:
+    """Is there any transport that could reach the daemon?"""
+    return _tcp_endpoint() is not None or hasattr(socket, "AF_UNIX")
+
+
+def _connect(timeout: float) -> socket.socket:
+    endpoint = _tcp_endpoint()
+    if endpoint is not None:
+        sock = socket.create_connection(endpoint, timeout=timeout)
+        sock.settimeout(timeout)
+        return sock
     sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     sock.settimeout(timeout)
+    sock.connect(str(config.SOLVERD_SOCKET))
+    return sock
+
+
+def _request(line: str, timeout: float) -> dict:
+    if config.SOLVERD_TOKEN:
+        line = f"{line} token={config.SOLVERD_TOKEN}"
     try:
-        sock.connect(path)
+        sock = _connect(timeout)
+    except (OSError, socket.timeout) as exc:
+        raise SolverUnavailable(str(exc)) from exc
+    try:
         sock.sendall((line + "\n").encode("utf-8"))
         buffer = bytearray()
         while not buffer.endswith(b"\n"):
@@ -61,7 +91,7 @@ def _request(line: str, timeout: float) -> dict:
 
 
 def ping(timeout: float = 0.5) -> bool:
-    if not hasattr(socket, "AF_UNIX"):
+    if not available():
         return False
     try:
         _request("ping", timeout)
@@ -105,7 +135,7 @@ def hint(
         parts.append("history=" + _encode_history(history))
 
     global _last_failure_logged
-    if hasattr(socket, "AF_UNIX"):
+    if available():
         try:
             payload = _request(" ".join(parts), config.SOLVERD_TIMEOUT)
             _last_failure_logged = False

@@ -155,6 +155,18 @@ def _page(name: str) -> FileResponse:
     return FileResponse(path)
 
 
+@app.get("/sw.js", include_in_schema=False)
+def service_worker():
+    """Served from the root, not /js/, so its scope covers every page.
+
+    A worker registered from /js/sw.js could only control /js/*.
+    """
+    response = FileResponse(config.FRONTEND_DIR / "sw.js", media_type="application/javascript")
+    # Never cache the worker itself, or a broken one becomes permanent.
+    response.headers["Cache-Control"] = "no-cache"
+    return response
+
+
 @app.get("/", include_in_schema=False)
 def welcome_page():
     return _page("index.html")

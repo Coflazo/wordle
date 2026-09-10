@@ -3,7 +3,9 @@
 Guess words from 5 to 10 letters in **English, Turkish or German**, then learn what they mean.
 Everything runs on your own machine. No account, no cloud, no analytics.
 
-![A game being played](docs/playthrough.gif)
+<p align="center">
+  <img src="docs/playthrough.gif" alt="A game of Oflaz Wordle: guessing CRANE, asking the solver for a hint, then solving TREAT" width="680">
+</p>
 
 ## Install
 
@@ -60,6 +62,22 @@ times and read its meaning, and it counts as mastered.
 **Hint** shows which words still fit and which guess would narrow it down most,
 measured in bits of information.
 
+**Today's puzzle** is the same word for everyone, in whichever language you pick,
+changing at your local midnight. Solve it and you can copy a spoiler-free grid to
+paste at a friend:
+
+```
+Oflaz Wordle #252 EN 3/6
+
+⬛🟨⬛⬛🟩
+⬛⬛🟨🟩🟩
+🟩🟩🟩🟩🟩
+```
+
+The app keeps working without a connection. Finished games, your stats and the
+meanings you have already looked up stay available; new guesses need the local
+server, which is on your own machine anyway.
+
 ## How it works
 
 A Python web server for the pages and your history, and a C++ core for the parts
@@ -67,6 +85,7 @@ that need to be fast.
 
 ```
 frontend/     plain HTML, CSS and JS. No build step, no framework.
+              Works offline through a service worker.
 app/          FastAPI + SQLite. Games, profiles, stats, dictionary lookups.
 native/       C++20, built as the Python module wordle_core.
 solverd/      C++ solver daemon. Optional; hints work without it.
@@ -89,8 +108,11 @@ The C++ core handles four things Python was bad at:
   candidate against every possible guess. In Turkish that is 29 million
   combinations for a single turn, spread across a thread pool.
 
-Word difficulty comes from how common a word is, blended with how many turns a
-solver needs to reach it, which is what makes the difficulty setting real.
+Word difficulty comes from how common a word is, blended with how many turns the
+C++ solver needs to reach it under optimal play, which is what makes the
+difficulty setting real. A word can be common and still hard: "mummy" repeats
+letters and shares a rhyme family, so it survives longer than its frequency
+suggests.
 
 Your games, your vocabulary and your stats live in `oflaz_wordle.db` next to the
 code. Delete that file and you start over.
@@ -102,15 +124,16 @@ code. Delete that file and you start over.
 - About **200 MB** of disk, mostly the word lists
 - A connection the first time, to download the word lists
 
-The installer sets up anything missing. On Windows the solver daemon is skipped,
-because Python there cannot open the kind of socket it uses; hints still work,
-computed inside the web server instead.
+The installer sets up anything missing. macOS and Linux reach the solver daemon
+over a Unix socket; Windows uses a loopback port with a shared token instead,
+because Python on Windows cannot open the first kind. Either way the daemon is
+optional: if it is not running, hints are computed inside the web server.
 
 ## Development
 
 ```bash
 python run.py --reload          # restart on file changes
-python -m pytest tests -q       # 120 tests
+python -m pytest tests -q       # 151 tests
 python -m scripts.build_wordbanks --difficulty   # rebuild banks, run the solver sweep
 cd solverd && make              # build the solver daemon
 ```
@@ -126,6 +149,7 @@ allows a frontend on another origin.
 | English | [dwyl/english-words](https://github.com/dwyl/english-words) | Accepted guesses |
 | English | [first20hours/google-10000-english](https://github.com/first20hours/google-10000-english) | Which words are answers |
 | English | [dictionaryapi.dev](https://dictionaryapi.dev) | Meanings |
+| All three | [Wiktionary](https://en.wiktionary.org) | Meanings, when the source above has none |
 | Turkish | [CanNuhlar/Turkce-Kelime-Listesi](https://github.com/CanNuhlar/Turkce-Kelime-Listesi) | Word bank |
 | Turkish | [TDK Sözlük](https://sozluk.gov.tr) | Meanings |
 | German | [enz/german-wordlist](https://github.com/enz/german-wordlist) | Word bank |

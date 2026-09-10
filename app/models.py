@@ -93,6 +93,7 @@ class Game(Base):
     __table_args__ = (
         CheckConstraint("status in ('active','won','lost')", name="ck_games_status"),
         Index("ix_games_profile_status", "profile_id", "status"),
+        UniqueConstraint("profile_id", "language", "daily_number", name="uq_daily_game"),
         Index("ix_games_profile_finished", "profile_id", "finished_at"),
     )
 
@@ -109,6 +110,9 @@ class Game(Base):
     status = Column(String(16), nullable=False, default="active")
     resigned = Column(Integer, nullable=False, default=0)
     hints_used = Column(Integer, nullable=False, default=0)
+    # Set for the daily puzzle. Unique per profile and language, so a second
+    # request the same day resumes rather than dealing a fresh board.
+    daily_number = Column(Integer, nullable=True)
     started_at = Column(UtcDateTime, default=utcnow, nullable=False)
     finished_at = Column(UtcDateTime, nullable=True)
 

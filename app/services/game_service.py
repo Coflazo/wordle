@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from typing import List, Optional
 
 import wordle_core as wc
-from sqlalchemy import update
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app import config, models
@@ -21,7 +21,7 @@ from app.errors import (
     NotFound,
     Unprocessable,
 )
-from app.services import stats_service, word_service
+from app.services import daily_service, stats_service, word_service
 
 
 def _now() -> datetime:
@@ -70,6 +70,54 @@ def start_game(
     db.commit()
     db.refresh(game)
     return game
+
+
+def start_daily(db: Session, profile_id: int, language: str, tz_offset_minutes: int = 0):
+    """Today's puzzle for this profile, resumed if already begun.
+
+    The word comes from the date, not from a stored table, so a device that has
+    been offline can still tell what today's word is, and two players get the
+    same one without anything being synchronised.
+    """
+    day = daily_service.today(tz_offset_minutes)
+    number = daily_service.puzzle_number(day)
+
+    existing = db.execute(
+        select(models.Game).where(
+            models.Game.profile_id == profile_id,
+            models.Game.language == language,
+            models.Game.daily_number == number,
+        )
+    ).scalar_one_or_none()
+    if existing is not None:
+        return existing, day
+
+    profile = db.get(models.Profile, profile_id)
+    if profile is None:
+        raise NotFound(PROFILE_NOT_FOUND, f"profile {profile_id} not found", profile_id=profile_id)
+
+    answer = daily_service.word_for(day, language)
+    if answer is None:
+        raise Unprocessable(NOT_A_WORD, f"no daily word available for {language}")
+
+    length = daily_service.DAILY_LENGTH
+    game = models.Game(
+        id=str(uuid.uuid4()),
+        profile_id=profile_id,
+        language=language,
+        word_length=length,
+        difficulty=daily_service.DAILY_DIFFICULTY,
+        answer=answer,
+        attempts_allowed=word_service.attempts_for(length, daily_service.DAILY_DIFFICULTY),
+        attempts_used=0,
+        status="active",
+        daily_number=number,
+    )
+    db.add(game)
+    stats_service.increment_seen(db, profile_id, answer, language)
+    db.commit()
+    db.refresh(game)
+    return game, day
 
 
 def submit_guess(db: Session, game_id: str, guess: str) -> dict:
@@ -206,7 +254,8 @@ def _reveal_display(game: models.Game) -> Optional[str]:
     return word_service.display(game.language, game.answer)
 
 
-def game_to_dict(game: models.Game, reveal_answer: bool = False) -> dict:
+def game_to_dict(game: models.Game, reveal_answer: bool = False,
+                 theme: str = "default") -> dict:
     reveal = reveal_answer or game.status != "active"
     # Ordered by turn, not by created_at: two rows written inside the same
     # microsecond used to sort non-deterministically.
@@ -228,6 +277,16 @@ def game_to_dict(game: models.Game, reveal_answer: bool = False) -> dict:
         "answer": game.answer if reveal else None,
         "answer_display": word_service.display(game.language, game.answer) if reveal else None,
         "tiers": list(word_service.tiers_for(game.difficulty)),
+        "daily_number": game.daily_number,
+        # Only once the game is over: the grid gives away how close each guess
+        # was, which is the whole point of not showing it early.
+        "share_text": (
+            daily_service.share_text(
+                game, [unpack_result(row.result) for row in guesses], theme
+            )
+            if game.status != "active"
+            else None
+        ),
     }
 
 

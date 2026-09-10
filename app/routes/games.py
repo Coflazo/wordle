@@ -8,7 +8,9 @@ from sqlalchemy.orm import Session
 from app import config, models, schemas
 from app.database import get_db
 from app.errors import GAME_NOT_FOUND, SOLVER_UNAVAILABLE, NotFound, Unavailable
-from app.services import experiment_service, game_service, solverd_client, word_service
+from app.services import (
+    daily_service, experiment_service, game_service, solverd_client, word_service,
+)
 
 router = APIRouter(prefix="/api/games", tags=["games"])
 
@@ -40,9 +42,32 @@ def start(body: schemas.GameStart, db: Session = Depends(get_db)):
     return game_service.game_to_dict(game)
 
 
+@router.post("/daily", response_model=schemas.DailyOut, status_code=200)
+def daily(
+    profile_id: int = Query(...),
+    language: schemas.Language = Query("en"),
+    tz_offset_minutes: int = Query(default=0, ge=-840, le=840),
+    db: Session = Depends(get_db),
+):
+    """Today's puzzle, the same word for everyone playing that language.
+
+    The offset comes from the browser so the puzzle rolls over at the player's
+    midnight rather than the server's. Calling this twice in one day resumes the
+    same board instead of dealing a new one.
+    """
+    game, day = game_service.start_daily(db, profile_id, language, tz_offset_minutes)
+    payload = daily_service.describe(day, language)
+    payload["game"] = game_service.game_to_dict(game)
+    return payload
+
+
 @router.get("/{game_id}", response_model=schemas.GameOut)
-def get_game(game_id: str, db: Session = Depends(get_db)):
-    return game_service.game_to_dict(_load(db, game_id))
+def get_game(
+    game_id: str,
+    theme: str = Query(default="default"),
+    db: Session = Depends(get_db),
+):
+    return game_service.game_to_dict(_load(db, game_id), theme=theme)
 
 
 @router.post("/{game_id}/guess", response_model=schemas.GuessOut)

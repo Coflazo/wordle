@@ -3,6 +3,7 @@
 import { api, ApiError } from '/js/api.js';
 import { State } from '/js/state.js';
 import { toast } from '/js/toast.js';
+import { registerServiceWorker, watchConnection } from '/js/offline.js';
 import { mountAvatar, ACCESSORIES, AURA_COLORS, HAIR_STYLES, SHIRT_COLORS } from '/js/avatar.js';
 import { initFlags, getFlag, track, flush } from '/js/analytics.js';
 import { initTheme, setTheme, THEMES } from '/js/theme.js';
@@ -25,6 +26,7 @@ const dom = {
   preview: el('avatar-preview'),
   previewSmall: el('avatar-preview-small'),
   startBtn: el('start-btn'),
+  dailyBtn: el('daily-btn'),
   defaultAvatar: el('avatar-default'),
 };
 
@@ -225,6 +227,26 @@ async function startGame() {
   }
 }
 
+async function startDaily() {
+  dom.dailyBtn.disabled = true;
+  const original = dom.dailyBtn.textContent;
+  dom.dailyBtn.textContent = t('setup.starting');
+  try {
+    const profileId = await ensureProfile();
+    const payload = await api.daily(profileId, setup.language);
+    State.set({ last_game_id: payload.game.game_id, session_language: setup.language });
+    track('daily_started', { number: payload.number, language: setup.language,
+                             resumed: payload.game.guesses.length > 0 }, payload.game.game_id);
+    await flush();
+    window.location.href = '/game';
+  } catch (err) {
+    const code = err instanceof ApiError ? err.code : 'generic';
+    toast(`${t('errors.startFailed')} ${t(`errors.${code}`) || ''}`.trim(), { tone: 'error' });
+    dom.dailyBtn.disabled = false;
+    dom.dailyBtn.textContent = original;
+  }
+}
+
 /* ------------------------------------------------------------------ boot */
 
 function main() {
@@ -301,6 +323,7 @@ function main() {
   selectCharacter(setup.characterMode);
 
   dom.startBtn.addEventListener('click', startGame);
+  dom.dailyBtn.addEventListener('click', startDaily);
 
   initFlags(State.activeProfileId()).then(() => {
     if (getFlag('customize_open') === 'open') dom.editor.open = true;
@@ -329,3 +352,6 @@ function refreshDynamicLabels() {
 }
 
 main();
+
+registerServiceWorker();
+watchConnection();

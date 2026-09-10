@@ -64,6 +64,7 @@ _ADDED_COLUMNS: dict[str, dict[str, str]] = {
     "games": {
         "resigned": "ALTER TABLE games ADD COLUMN resigned INTEGER NOT NULL DEFAULT 0",
         "hints_used": "ALTER TABLE games ADD COLUMN hints_used INTEGER NOT NULL DEFAULT 0",
+        "daily_number": "ALTER TABLE games ADD COLUMN daily_number INTEGER",
     },
     "guesses": {
         "turn": "ALTER TABLE guesses ADD COLUMN turn INTEGER NOT NULL DEFAULT 0",

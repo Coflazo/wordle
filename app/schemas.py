@@ -101,6 +101,18 @@ class GameOut(BaseModel):
     answer: Optional[str] = None
     answer_display: Optional[str] = None
     tiers: List[Tier] = Field(default_factory=list)
+    daily_number: Optional[int] = None
+    share_text: Optional[str] = None
+
+
+class DailyOut(BaseModel):
+    date: str
+    number: int
+    language: Language
+    word_length: int
+    difficulty: Difficulty
+    attempts_allowed: int
+    game: Optional[GameOut] = None
 
 
 class GuessIn(BaseModel):
@@ -160,6 +172,9 @@ class MeaningOut(BaseModel):
     entries: List[MeaningEntry] = Field(default_factory=list)
     extras: Dict[str, Any] = Field(default_factory=dict)
     from_cache: bool = False
+    # Set when definitions came from the fallback but synonyms came from the
+    # language's own source, so the panel can credit both.
+    also_from: Optional[str] = None
 
 
 # ----------------------------------------------------------------- dashboard

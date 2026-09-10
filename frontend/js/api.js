@@ -111,7 +111,12 @@ export const api = {
   deleteProfile: (id) => req('DELETE', `/api/profiles/${id}`),
 
   startGame: (payload) => req('POST', '/api/games/start', payload),
-  getGame: (id) => req('GET', `/api/games/${id}`),
+  // The browser's offset, so the puzzle rolls over at the player's midnight
+  // rather than the server's.
+  daily: (profileId, language) => req('POST',
+    `/api/games/daily?profile_id=${profileId}&language=${language}`
+    + `&tz_offset_minutes=${-new Date().getTimezoneOffset()}`),
+  getGame: (id, theme) => req('GET', `/api/games/${id}${theme ? `?theme=${theme}` : ''}`),
   // No retry on a guess: replaying a turn that did land would consume two.
   submitGuess: (id, guess) => req('POST', `/api/games/${id}/guess`, { guess }, { retries: 0 }),
   giveUp: (id) => req('POST', `/api/games/${id}/give-up`, undefined, { retries: 0 }),

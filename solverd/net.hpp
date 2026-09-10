@@ -1,9 +1,13 @@
 // Socket compatibility for solverd.
 //
-// Unix domain sockets, not TCP, on every platform: Windows has supported AF_UNIX
-// since Windows 10 1803, and a filesystem socket cannot be reached from another
-// machine, which matters for something that answers questions about the word the
-// player is currently trying to guess.
+// A Unix domain socket by default: it lives in the filesystem, so it cannot be
+// reached from another machine, and file permissions decide who may ask about
+// the word the player is currently guessing.
+//
+// Windows also supports AF_UNIX (since 10 1803), but CPython does not expose
+// `socket.AF_UNIX` there, so Python cannot dial one. For that case the daemon
+// also speaks TCP on loopback, guarded by a shared token — loopback alone would
+// let any other account on the machine connect.
 #pragma once
 
 #include <string>
@@ -16,6 +20,7 @@
 #include <winsock2.h>
 // afunix.h must follow winsock2.h.
 #include <afunix.h>
+#include <ws2tcpip.h>
 #include <windows.h>
 
 namespace netcompat {
@@ -40,6 +45,8 @@ inline void restrict_to_owner(const std::string&) {}
 
 #else
 
+#include <arpa/inet.h>
+#include <netinet/in.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/un.h>

@@ -57,6 +57,11 @@ constexpr std::size_t kMaxRequestBytes = 64 * 1024;
 constexpr std::size_t kCacheEntries = 256;
 
 std::atomic<bool> g_running{true};
+// The signal handler closes this so a blocking accept() returns at once.
+// Without it, SIGTERM only took effect on the next incoming connection, so a
+// daemon with no traffic ignored shutdown until it was killed.
+std::atomic<netcompat::socket_t> g_listener{netcompat::kInvalidSocket};
+std::string g_token;  // empty means no auth required (unix socket case)
 std::atomic<std::uint64_t> g_requests{0};
 std::atomic<std::uint64_t> g_cache_hits{0};
 
@@ -236,6 +241,12 @@ struct Server {
         Request req = parse_request(line);
         g_requests.fetch_add(1);
 
+        // Only set when listening on TCP. A loopback port is reachable by every
+        // account on the machine, unlike a mode-0600 socket file.
+        if (!g_token.empty() && req.get("token", "") != g_token) {
+            return json_error("unauthorized");
+        }
+
         if (req.op == "ping") return "{\"ok\":true,\"service\":\"solverd\"}";
         if (req.op == "shutdown") {
             g_running.store(false);
@@ -392,19 +403,29 @@ void serve_connection(netcompat::socket_t fd, Server& server) {
     netcompat::close_socket(fd);
 }
 
-void on_signal(int) { g_running.store(false); }
+void on_signal(int) {
+    g_running.store(false);
+    netcompat::socket_t fd = g_listener.exchange(netcompat::kInvalidSocket);
+    // close() is on the POSIX async-signal-safe list; this is what unblocks
+    // the accept() the main loop is sitting in.
+    if (netcompat::is_valid(fd)) netcompat::close_socket(fd);
+}
 
 }  // namespace
 
 int main(int argc, char** argv) {
     std::string socket_path = "run/solverd.sock";
     std::string bank_dir = "app/data/banks";
+    int tcp_port = 0;  // 0 = use a unix socket
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
         if (arg == "--socket" && i + 1 < argc) socket_path = argv[++i];
         else if (arg == "--banks" && i + 1 < argc) bank_dir = argv[++i];
+        else if (arg == "--tcp" && i + 1 < argc) tcp_port = std::atoi(argv[++i]);
+        else if (arg == "--token" && i + 1 < argc) g_token = argv[++i];
         else if (arg == "--help") {
-            std::cout << "usage: solverd [--socket PATH] [--banks DIR]\n";
+            std::cout << "usage: solverd [--socket PATH | --tcp PORT [--token SECRET]]"
+                         " [--banks DIR]\n";
             return 0;
         } else {
             std::cerr << "solverd: unknown argument " << arg << "\n";
@@ -421,8 +442,10 @@ int main(int argc, char** argv) {
     // Safe to remove: if another solverd were live on this path, the bind below
     // would fail anyway and we exit.
     std::error_code ec;
-    std::filesystem::create_directories(std::filesystem::path(socket_path).parent_path(), ec);
-    netcompat::remove_file(socket_path);
+    if (tcp_port == 0) {
+        std::filesystem::create_directories(std::filesystem::path(socket_path).parent_path(), ec);
+        netcompat::remove_file(socket_path);
+    }
 
     std::unique_ptr<Server> server;
     try {
@@ -432,37 +455,70 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    netcompat::socket_t listener = ::socket(AF_UNIX, SOCK_STREAM, 0);
-    if (!netcompat::is_valid(listener)) {
-        std::cerr << "solverd: cannot create socket\n";
-        return 1;
+    netcompat::socket_t listener;
+    std::string endpoint;
+
+    if (tcp_port > 0) {
+        // Loopback only. Never INADDR_ANY: this answers questions about the
+        // word the player is mid-way through guessing.
+        listener = ::socket(AF_INET, SOCK_STREAM, 0);
+        if (!netcompat::is_valid(listener)) {
+            std::cerr << "solverd: cannot create socket\n";
+            return 1;
+        }
+        int reuse = 1;
+        ::setsockopt(listener, SOL_SOCKET, SO_REUSEADDR,
+                     reinterpret_cast<const char*>(&reuse), sizeof(reuse));
+        sockaddr_in addr{};
+        addr.sin_family = AF_INET;
+        addr.sin_port = htons(static_cast<std::uint16_t>(tcp_port));
+        addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+        if (::bind(listener, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) != 0) {
+            std::cerr << "solverd: cannot bind 127.0.0.1:" << tcp_port
+                      << " (already in use?)\n";
+            return 1;
+        }
+        endpoint = "127.0.0.1:" + std::to_string(tcp_port);
+        if (g_token.empty()) {
+            std::cerr << "solverd: refusing to listen on TCP without --token\n";
+            return 1;
+        }
+    } else {
+        listener = ::socket(AF_UNIX, SOCK_STREAM, 0);
+        if (!netcompat::is_valid(listener)) {
+            std::cerr << "solverd: cannot create socket\n";
+            return 1;
+        }
+        sockaddr_un addr{};
+        addr.sun_family = AF_UNIX;
+        if (socket_path.size() >= sizeof(addr.sun_path)) {
+            std::cerr << "solverd: socket path too long (" << socket_path.size() << " >= "
+                      << sizeof(addr.sun_path) << "): " << socket_path << "\n";
+            return 1;
+        }
+        std::strncpy(addr.sun_path, socket_path.c_str(), sizeof(addr.sun_path) - 1);
+        if (::bind(listener, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) != 0) {
+            std::cerr << "solverd: cannot bind " << socket_path
+                      << " (is another solverd already running?)\n";
+            return 1;
+        }
+        netcompat::restrict_to_owner(socket_path);
+        endpoint = socket_path;
     }
-    sockaddr_un addr{};
-    addr.sun_family = AF_UNIX;
-    if (socket_path.size() >= sizeof(addr.sun_path)) {
-        std::cerr << "solverd: socket path too long (" << socket_path.size() << " >= "
-                  << sizeof(addr.sun_path) << "): " << socket_path << "\n";
-        return 1;
-    }
-    std::strncpy(addr.sun_path, socket_path.c_str(), sizeof(addr.sun_path) - 1);
-    if (::bind(listener, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) != 0) {
-        std::cerr << "solverd: cannot bind " << socket_path
-                  << " (is another solverd already running?)\n";
-        return 1;
-    }
-    netcompat::restrict_to_owner(socket_path);
+
     if (::listen(listener, kMaxConnections) != 0) {
-        std::cerr << "solverd: cannot listen on " << socket_path << "\n";
+        std::cerr << "solverd: cannot listen on " << endpoint << "\n";
         return 1;
     }
 
+    g_listener.store(listener);
     std::signal(SIGINT, on_signal);
     std::signal(SIGTERM, on_signal);
 #ifdef SIGPIPE
     std::signal(SIGPIPE, SIG_IGN);  // a client that hangs up must not kill us
 #endif
 
-    std::cout << "solverd listening on " << socket_path << " (banks: " << bank_dir << ")"
+    std::cout << "solverd listening on " << endpoint << " (banks: " << bank_dir << ")"
               << std::endl;
 
     // Connections are handled on detached threads, so the cap is an atomic
@@ -487,8 +543,9 @@ int main(int argc, char** argv) {
         }).detach();
     }
 
-    netcompat::close_socket(listener);
-    netcompat::remove_file(socket_path);
+    netcompat::socket_t remaining = g_listener.exchange(netcompat::kInvalidSocket);
+    if (netcompat::is_valid(remaining)) netcompat::close_socket(remaining);
+    if (tcp_port == 0) netcompat::remove_file(socket_path);
     netcompat::shutdown_lib();
     std::cout << "solverd stopped" << std::endl;
     return 0;

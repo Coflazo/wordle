@@ -15,6 +15,11 @@ RUN_DIR = Path(os.environ.get("WORDLE_RUN_DIR", ROOT / "run"))
 DB_URL = os.environ.get("WORDLE_DB_URL", f"sqlite:///{ROOT / 'oflaz_wordle.db'}")
 
 SOLVERD_SOCKET = Path(os.environ.get("WORDLE_SOLVERD_SOCKET", RUN_DIR / "solverd.sock"))
+# Loopback TCP instead of a socket file. Used on Windows, where CPython does not
+# expose socket.AF_UNIX even though the OS supports it. Guarded by a token,
+# because a loopback port is reachable by every account on the machine.
+SOLVERD_TCP = os.environ.get("WORDLE_SOLVERD_TCP", "")
+SOLVERD_TOKEN = os.environ.get("WORDLE_SOLVERD_TOKEN", "")
 SOLVERD_TIMEOUT = float(os.environ.get("WORDLE_SOLVERD_TIMEOUT", "5.0"))
 # When solverd is not running, hints are answered in-process by wordle_core.
 # Slower on the first turn and without the candidate cache, but never a 503.

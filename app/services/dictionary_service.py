@@ -17,6 +17,7 @@ from app.services import (
     english_dictionary_service,
     german_dictionary_service,
     tdk_service,
+    wiktionary_service,
     word_service,
 )
 
@@ -27,6 +28,12 @@ SOURCE_BY_LANG = {
     "tr": ("tdk-all-api", "TDK"),
     "de": ("openthesaurus", "OpenThesaurus"),
 }
+
+# Each language tries its preferred source, then Wiktionary. One upstream going
+# quiet used to empty out a whole language: dictionaryapi.dev stopped answering
+# and every English lookup returned nothing, with no second opinion to fall back
+# on. Wiktionary covers all three, so it backs each of them up.
+FALLBACK_LABEL = "Wiktionary"
 
 # Give the diacritic retry chain a hard ceiling. Turkish used to try the word
 # plus five spelling candidates one after another at 10 s each, so a single
@@ -71,10 +78,26 @@ async def get_meaning(db: Session, language: str, word: str) -> Dict:
 
     payload = await _fetch(language, word_norm, source_key, label)
 
-    payload["source"] = source_key
-    # The canonical label, not whatever the adapter set. One of them returned
-    # "German word context", which is shown to the player in every locale.
-    payload["source_label"] = label
+    # Fall back when the primary source gave nothing, and top up when it gave
+    # only related words. OpenThesaurus is a thesaurus: it answers German
+    # lookups with synonyms and no definition at all, which tells a learner what
+    # else to say but never what the word means.
+    if not _has_definition(payload):
+        fallback = await wiktionary_service.lookup(
+            word_norm, language, display=word_service.display(language, word_norm)
+        )
+        if _has_definition(fallback):
+            payload = _merge(payload, fallback, label)
+        elif not _has_meaning(payload) and _has_meaning(fallback):
+            payload = fallback
+
+    if payload.get("source") != "wiktionary":
+        payload["source"] = source_key
+        # The canonical label, not whatever the adapter set. One of them
+        # returned "German word context", shown to the player in every locale.
+        payload["source_label"] = label
+    else:
+        payload["source_label"] = FALLBACK_LABEL
     payload.setdefault("word", word_norm)
     payload["display"] = word_service.display(language, word_norm)
     payload["language"] = language
@@ -170,6 +193,28 @@ def _simplify(payload: Dict) -> Optional[str]:
         # reading the interface in Turkish or German.
         return ", ".join(similar[:5])
     return None
+
+
+def _merge(primary: Dict, fallback: Dict, primary_label: str) -> Dict:
+    """Wiktionary's definitions, keeping the primary source's synonyms and extras."""
+    merged = dict(fallback)
+    synonyms = [
+        word
+        for entry in primary.get("entries") or []
+        for word in entry.get("synonyms") or []
+    ]
+    if synonyms and merged["entries"]:
+        merged["entries"][0] = {**merged["entries"][0], "synonyms": synonyms[:8]}
+    extras = {k: v for k, v in (primary.get("extras") or {}).items() if k != "error"}
+    merged["extras"] = {**extras, **{k: v for k, v in (fallback.get("extras") or {}).items()
+                                     if k != "error"}}
+    merged["also_from"] = primary_label
+    return merged
+
+
+def _has_definition(payload: Dict) -> bool:
+    """A real definition, not merely a list of related words."""
+    return any((entry.get("definition") or "").strip() for entry in payload.get("entries") or [])
 
 
 def _has_meaning(payload: Dict) -> bool:
