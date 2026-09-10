@@ -71,8 +71,10 @@ async def get_meaning(db: Session, language: str, word: str) -> Dict:
 
     payload = await _fetch(language, word_norm, source_key, label)
 
-    payload.setdefault("source", source_key)
-    payload.setdefault("source_label", label)
+    payload["source"] = source_key
+    # The canonical label, not whatever the adapter set. One of them returned
+    # "German word context", which is shown to the player in every locale.
+    payload["source_label"] = label
     payload.setdefault("word", word_norm)
     payload["display"] = word_service.display(language, word_norm)
     payload["language"] = language

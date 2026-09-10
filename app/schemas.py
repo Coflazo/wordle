@@ -142,7 +142,10 @@ class HintOut(BaseModel):
 
 class MeaningEntry(BaseModel):
     part_of_speech: Optional[str] = None
-    definition: str
+    # Optional because a thesaurus entry is synonyms without a definition.
+    # OpenThesaurus returns exactly that for German, and requiring a string
+    # here turned every German lookup into a 500.
+    definition: Optional[str] = None
     example: Optional[str] = None
     synonyms: List[str] = Field(default_factory=list)
     antonyms: List[str] = Field(default_factory=list)

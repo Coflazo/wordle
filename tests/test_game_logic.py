@@ -1,80 +1,101 @@
-"""Wordle scoring — duplicate-letter edge cases."""
+"""Scoring, including a differential test against an independent reference."""
+
+from __future__ import annotations
+
+import random
+
+import pytest
+import wordle_core as wc
 
 from app.services.game_service import score_guess
 
 
-def test_all_correct():
-    assert score_guess("apple", "apple") == ["green"] * 5
+def reference_score(answer: str, guess: str) -> list[str]:
+    """The two-pass algorithm, written plainly.
+
+    This is deliberately a separate implementation from the C++ one. Its whole
+    job is to disagree if the optimized version ever drifts.
+    """
+    answer_chars = list(answer)
+    guess_chars = list(guess)
+    result = ["gray"] * len(guess_chars)
+    remaining: dict[str, int] = {}
+
+    for i, ch in enumerate(answer_chars):
+        if guess_chars[i] == ch:
+            result[i] = "green"
+        else:
+            remaining[ch] = remaining.get(ch, 0) + 1
+
+    for i, ch in enumerate(guess_chars):
+        if result[i] == "green":
+            continue
+        if remaining.get(ch, 0) > 0:
+            result[i] = "yellow"
+            remaining[ch] -= 1
+    return result
 
 
-def test_all_wrong():
-    assert score_guess("apple", "zzzzz") == ["gray"] * 5
+@pytest.mark.parametrize(
+    "answer,guess,expected",
+    [
+        ("crane", "crane", ["green"] * 5),
+        ("crane", "boils", ["gray"] * 5),
+        # The classic duplicate-letter case: only one E can be credited, and the
+        # green one claims it, so the guess's first E scores gray.
+        ("speed", "erase", ["yellow", "gray", "gray", "yellow", "yellow"]),
+        ("kayak", "aaaaa", ["gray", "green", "gray", "green", "gray"]),
+        ("level", "hello", ["gray", "green", "yellow", "yellow", "gray"]),
+        # b and e land in place; the leading b and a are present but misplaced.
+        ("abbey", "babes", ["yellow", "yellow", "green", "green", "gray"]),
+    ],
+)
+def test_known_cases(answer, guess, expected):
+    assert score_guess(answer, guess, "en") == expected
+    assert reference_score(answer, guess) == expected
 
 
-def test_speed_erase():
-    # SPEED / ERASE:
-    # positions 0..4 answer=S P E E D, guess=E R A S E
-    # Pass 1: index 3 (S vs E) no; index 3 answer=E vs guess=S no; recompute:
-    # Position by position:
-    #   0: S vs E -> not green, remaining[S]=1
-    #   1: P vs R -> not green, remaining[P]=1
-    #   2: E vs A -> not green, remaining[E]=1
-    #   3: E vs S -> not green, remaining[E]=2
-    #   4: D vs E -> not green, remaining[D]=1
-    # Pass 2:
-    #   0 E: remaining[E]=2 -> yellow, remaining[E]=1
-    #   1 R: not in remaining -> gray
-    #   2 A: not in remaining -> gray
-    #   3 S: remaining[S]=1 -> yellow, remaining[S]=0
-    #   4 E: remaining[E]=1 -> yellow, remaining[E]=0
-    assert score_guess("speed", "erase") == [
-        "yellow",
-        "gray",
-        "gray",
-        "yellow",
-        "yellow",
-    ]
+@pytest.mark.parametrize("language,alphabet", [
+    ("en", "abcdefghijklmnopqrstuvwxyz"),
+    ("tr", "abcçdefgğhıijklmnoöprsştuüvyz"),
+    ("de", "abcdefghijklmnopqrstuvwxyzäöüß"),
+])
+def test_matches_reference_on_random_words(language, alphabet):
+    """The native scorer must agree with the reference on every input.
+
+    Random words rather than dictionary words on purpose: dense repeats are
+    where duplicate-letter budgeting goes wrong, and a real word list barely
+    exercises them.
+    """
+    rng = random.Random(20260910)
+    letters = list(alphabet)
+    for _ in range(4000):
+        length = rng.randint(5, 10)
+        # A small pool most of the time, so repeats are common.
+        pool = rng.sample(letters, rng.choice([2, 3, 4, len(letters)]))
+        answer = "".join(rng.choice(pool) for _ in range(length))
+        guess = "".join(rng.choice(pool) for _ in range(length))
+        assert score_guess(answer, guess, language) == reference_score(answer, guess), (
+            f"{language}: {answer} vs {guess}"
+        )
 
 
-def test_kayak_aaaaa():
-    # KAYAK / AAAAA
-    # Pass 1: greens where guess=A and answer=A → positions 1 and 3.
-    # After greens, remaining letters in answer for gray/yellow eval: K, Y, K (positions 0, 2, 4).
-    # Pass 2 for non-green positions:
-    #   0 A: not in remaining -> gray
-    #   2 A: not in remaining -> gray
-    #   4 A: not in remaining -> gray
-    assert score_guess("kayak", "aaaaa") == [
-        "gray",
-        "green",
-        "gray",
-        "green",
-        "gray",
-    ]
+def test_all_green_only_when_equal():
+    rng = random.Random(7)
+    for _ in range(500):
+        length = rng.randint(5, 10)
+        answer = "".join(rng.choice("abcde") for _ in range(length))
+        guess = "".join(rng.choice("abcde") for _ in range(length))
+        all_green = all(mark == "green" for mark in score_guess(answer, guess, "en"))
+        assert all_green == (answer == guess)
 
 
-def test_level_hello():
-    # LEVEL / HELLO
-    # Pass 1: L E V E L vs H E L L O
-    #   0: L vs H -> not green
-    #   1: E vs E -> GREEN
-    #   2: V vs L -> not green
-    #   3: E vs L -> not green
-    #   4: L vs O -> not green
-    # remaining (excluding greens): L(x2 at pos 0,4), V, E
-    # Pass 2:
-    #   0 H: not in remaining -> gray
-    #   2 L: remaining[L]=2 -> yellow, remaining[L]=1
-    #   3 L: remaining[L]=1 -> yellow, remaining[L]=0
-    #   4 O: not in remaining -> gray
-    assert score_guess("level", "hello") == [
-        "gray",
-        "green",
-        "yellow",
-        "yellow",
-        "gray",
-    ]
+def test_score_rejects_mismatched_lengths():
+    with pytest.raises(ValueError):
+        wc.score("crane", "boil", "en")
 
 
-def test_case_insensitive():
-    assert score_guess("Apple", "APPLE") == ["green"] * 5
+def test_score_rejects_letters_outside_the_alphabet():
+    # q, w and x are not Turkish letters.
+    with pytest.raises(ValueError):
+        wc.score("kalem", "qwxyz", "tr")

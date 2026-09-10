@@ -329,8 +329,12 @@ function renderMeaning(payload) {
   const fragment = document.createDocumentFragment();
   const entries = payload.entries || [];
 
-  if (!entries.length && !Object.keys(payload.extras || {}).length) {
-    fragment.appendChild(emptyNote(t('game.noDefinition')));
+  const extrasKeys = Object.keys(payload.extras || {}).filter((k) => k !== 'error');
+  if (!entries.length && !extrasKeys.length) {
+    // A network failure is not the same as a word with no definition, and
+    // saying the latter when the dictionary is simply unreachable is a lie.
+    const failed = (payload.extras || {}).error === 'source_unreachable';
+    fragment.appendChild(emptyNote(t(failed ? 'game.sourceUnreachable' : 'game.noDefinition')));
   }
 
   for (const entry of entries) {
@@ -344,9 +348,11 @@ function renderMeaning(payload) {
       pos.textContent = entry.part_of_speech;
       block.appendChild(pos);
     }
-    const def = document.createElement('p');
-    def.textContent = entry.definition;
-    block.appendChild(def);
+    if (entry.definition) {
+      const def = document.createElement('p');
+      def.textContent = entry.definition;
+      block.appendChild(def);
+    }
 
     if (entry.example) {
       const example = document.createElement('p');
