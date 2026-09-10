@@ -1,0 +1,195 @@
+/* Oflaz Wordle — global tokens + reset. Source of truth for tokens.
+   Design system: Oflaz Pixel Intelligence (Stitch asset 6828354017736884065). */
+
+:root {
+  --bg: #090B12;
+  --surface: #111521;
+  --surface-2: #171C2B;
+  --surface-3: #1E2438;
+  --text: #F4F7FB;
+  --muted: #8B94A7;
+  --muted-2: #5C6478;
+
+  --green: #3CCB7F;
+  --yellow: #F4C95D;
+  --gray: #3A4052;
+
+  --cyan: #62E6FF;
+  --pink: #FF5DA2;
+  --purple: #8D7CFF;
+
+  --danger: #FF6B6B;
+  --border: rgba(255, 255, 255, 0.12);
+  --border-strong: rgba(255, 255, 255, 0.22);
+
+  --radius-tile: 4px;
+  --radius: 8px;
+  --radius-lg: 12px;
+  --radius-pill: 999px;
+
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-2: 0 8px 24px rgba(0, 0, 0, 0.45);
+
+  --font-heading: "Space Grotesk", "Inter", system-ui, sans-serif;
+  --font-body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+
+  --tile-size: clamp(38px, 8vw, 64px);
+  --tile-gap: 6px;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.5;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+a { color: var(--cyan); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+button {
+  font-family: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+input, select, textarea {
+  font-family: inherit;
+  color: inherit;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  outline: none;
+}
+
+input:focus, select:focus, textarea:focus {
+  border-color: var(--cyan);
+  box-shadow: 0 0 0 2px rgba(98, 230, 255, 0.18);
+}
+
+.hidden { display: none !important; }
+.visually-hidden { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 20px;
+  border-radius: var(--radius);
+  font-weight: 600;
+  font-family: var(--font-heading);
+  letter-spacing: 0.02em;
+  transition: transform 120ms ease, background 120ms ease, box-shadow 120ms ease;
+  border: 1px solid transparent;
+  min-height: 44px;
+}
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn:active:not(:disabled) { transform: translateY(1px); }
+
+.btn-primary { background: linear-gradient(180deg, #4ee096, #2fb26a); color: #0b1a12; }
+.btn-primary:hover:not(:disabled) { filter: brightness(1.08); box-shadow: 0 6px 18px rgba(60, 203, 127, 0.35); }
+
+.btn-secondary { background: var(--surface-2); border-color: var(--border-strong); color: var(--text); }
+.btn-secondary:hover:not(:disabled) { background: var(--surface-3); }
+
+.btn-ghost { background: transparent; color: var(--muted); }
+.btn-ghost:hover:not(:disabled) { color: var(--text); }
+
+.btn-danger { background: transparent; border-color: rgba(255,107,107,0.4); color: var(--danger); }
+.btn-danger:hover:not(:disabled) { background: rgba(255,107,107,0.08); }
+
+/* Cards */
+.card {
+  background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.0)), var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  box-shadow: var(--shadow-2);
+}
+
+/* Chips */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.chip.chip-en { color: var(--cyan); }
+.chip.chip-tr { color: var(--pink); }
+.chip.chip-de { color: var(--purple); }
+.chip.chip-hot { color: var(--green); }
+
+/* Segmented control */
+.segmented {
+  display: inline-flex;
+  padding: 4px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  gap: 2px;
+}
+.segmented > button {
+  padding: 8px 14px;
+  border-radius: var(--radius-pill);
+  font-weight: 500;
+  color: var(--muted);
+  font-family: var(--font-heading);
+  font-size: 14px;
+  transition: color 120ms ease, background 120ms ease;
+}
+.segmented > button.is-active {
+  background: var(--surface-3);
+  color: var(--text);
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+}
+.segmented > button:hover:not(.is-active) { color: var(--text); }
+
+/* Layout helpers */
+.stack > * + * { margin-top: 12px; }
+.stack-lg > * + * { margin-top: 20px; }
+.row { display: flex; gap: 12px; align-items: center; }
+.spacer { flex: 1; }
+.center { display: grid; place-items: center; }
+.grid { display: grid; gap: 16px; }
+.muted { color: var(--muted); }
+.mono { font-family: var(--font-mono); letter-spacing: 0.02em; }
+.small { font-size: 12px; }
+
+/* Wordmark */
+.wordmark {
+  font-family: var(--font-heading);
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+/* Scrollbars */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--surface-3); border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: var(--gray); }
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; }
+}

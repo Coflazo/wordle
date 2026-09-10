@@ -1,0 +1,32 @@
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+env/
+.DS_Store
+*.db
+*.sqlite
+*.sqlite3
+oflaz_wordle.db
+node_modules/
+.env
+.pytest_cache/
+
+# Upstream word sources: large, and each has its own license. Fetched by
+# `python -m scripts.download_sources`.
+app/data/raw/*/*
+!app/data/raw/*/.gitkeep
+
+# Derived from the raw sources. The .wbk banks in app/data/banks/ ARE committed
+# so a fresh clone can play without downloading anything; these JSON dumps are
+# the same data in a diffable form and are opt-in (--emit-json).
+app/data/processed/*.json
+
+# Native build artifacts. Rebuild with `pip install -e .`
+build/
+dist/
+*.so
+*.o
+*.egg-info/
+solverd/build/

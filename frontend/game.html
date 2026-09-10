@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Oflaz Wordle</title>
+  <link rel="icon" type="image/svg+xml" href="/assets/icons/favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&family=Space+Grotesk:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/base.css">
+  <link rel="stylesheet" href="/css/motion.css">
+  <link rel="stylesheet" href="/css/game.css">
+</head>
+<body>
+  <div class="game-shell">
+    <header class="topbar">
+      <a href="/" class="wordmark" style="color:var(--text);text-decoration:none">Oflaz Wordle</a>
+      <span class="chip" id="lang-chip">EN</span>
+      <span class="chip" id="difficulty-chip">CLASSIC</span>
+      <div class="spacer"></div>
+      <div class="avatar-shell" id="topbar-avatar"></div>
+      <span id="profile-name" class="mono small muted"></span>
+      <a href="/profile" class="btn btn-secondary">Profile</a>
+      <a href="/" class="btn btn-ghost" title="New game">↻</a>
+    </header>
+
+    <main class="game-main">
+      <section class="board-column">
+        <div class="stats-strip">
+          <span class="stat-pill" id="length-pill">length<b id="length-value">5</b></span>
+          <span class="stat-pill" id="attempts-pill">attempts left<b id="attempts-value">6</b></span>
+          <button class="btn btn-secondary" id="info-btn" title="Meaning">(i)</button>
+        </div>
+        <div id="board" class="board" style="--cols:5"></div>
+        <div id="result-banner" class="result-banner hidden"></div>
+      </section>
+
+      <aside class="drawer" id="drawer" aria-live="polite">
+        <div class="drawer-handle">Meaning</div>
+        <h3 id="drawer-title">Meaning</h3>
+        <div class="drawer-word" id="drawer-word">—</div>
+        <div id="drawer-source" class="small muted mono" style="margin:6px 0 12px"></div>
+        <div id="drawer-body">
+          <div class="drawer-empty">Need help understanding a word? Play a guess, then tap <b>(i)</b>.</div>
+        </div>
+      </aside>
+    </main>
+
+    <section class="keyboard" id="keyboard"></section>
+  </div>
+
+  <script type="module" src="/js/game.js"></script>
+</body>
+</html>

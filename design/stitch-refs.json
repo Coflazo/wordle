@@ -1,0 +1,38 @@
+{
+  "projectId": "3416930507381620768",
+  "projectName": "projects/3416930507381620768",
+  "designSystemId": "6828354017736884065",
+  "designSystemAsset": "assets/6828354017736884065",
+  "designSystemName": "Oflaz Pixel Intelligence",
+  "screens": {
+    "welcome": {
+      "id": "b0f33668a3ec46d09ec8e24f1ea5c0e1",
+      "name": "projects/3416930507381620768/screens/b0f33668a3ec46d09ec8e24f1ea5c0e1",
+      "title": "Oflaz Wordle Welcome",
+      "deviceType": "DESKTOP"
+    },
+    "game": {
+      "id": "f3c7dc7edc504af1afb9656db3cafd46",
+      "name": "projects/3416930507381620768/screens/f3c7dc7edc504af1afb9656db3cafd46",
+      "title": "Oflaz Wordle Game",
+      "deviceType": "DESKTOP"
+    },
+    "profile": {
+      "id": "441b0927f8204d218469dab8bfd8cae0",
+      "name": "projects/3416930507381620768/screens/441b0927f8204d218469dab8bfd8cae0",
+      "title": "Çağan's Profile Dashboard",
+      "deviceType": "DESKTOP"
+    },
+    "avatars": {
+      "default_oflaz_image": "projects/3416930507381620768/screens/255f1cc0d8f2433bb5518d62e963d4b5",
+      "custom_glasses_image": "projects/3416930507381620768/screens/f02348fd0b0741c3992f18375457443e"
+    }
+  },
+  "how_to_iterate": {
+    "edit_screen": "mcp__stitch__edit_screens with screenId + prompt describing the tweak",
+    "regenerate_design_system": "mcp__stitch__update_design_system with new tokens, then apply_design_system to each screen",
+    "export_html": "mcp__stitch__get_screen returns the raw HTML/CSS; pull it via the htmlCode.downloadUrl",
+    "asset_images": "mcp__stitch__download_assets(screenId, target: 'frontend/assets/')"
+  },
+  "notes": "Stitch outputs serve as visual reference + design system anchor. The shipping frontend under frontend/ uses hand-written HTML/CSS/JS aligned to the same tokens defined in the design system."
+}

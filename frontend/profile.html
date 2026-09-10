@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Oflaz Wordle</title>
+  <link rel="icon" type="image/svg+xml" href="/assets/icons/favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&family=Space+Grotesk:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/base.css">
+  <link rel="stylesheet" href="/css/motion.css">
+  <link rel="stylesheet" href="/css/profile.css">
+</head>
+<body>
+  <div class="profile-shell">
+    <header class="profile-header">
+      <div class="avatar-shell" id="profile-avatar"></div>
+      <div>
+        <div class="profile-name" id="profile-name">—</div>
+        <div class="profile-meta"><span id="profile-lang">preferred: en</span> · <span id="profile-since">since —</span></div>
+      </div>
+      <div class="spacer"></div>
+      <a href="/" class="btn btn-primary">New game</a>
+    </header>
+
+    <div class="tab-strip" id="lang-tabs" role="tablist">
+      <button data-lang="" class="is-active">All</button>
+      <button data-lang="en">English</button>
+      <button data-lang="tr">Turkish</button>
+      <button data-lang="de">German</button>
+    </div>
+
+    <div id="empty-state" class="card empty-state hidden">
+      <p>No games yet — <a href="/">start one</a> and come back.</p>
+    </div>
+
+    <section id="dashboard" class="stack-lg">
+      <div class="stat-grid">
+        <div class="stat-card"><span class="label">Games played</span><span class="value" data-metric="games_played">0</span></div>
+        <div class="stat-card">
+          <span class="label">Win rate</span>
+          <div class="row" style="align-items:center;gap:12px">
+            <span class="value win-rate" data-metric="win_rate">0%</span>
+            <div class="mastery-ring" id="win-rate-ring"><span class="ring-value">0%</span></div>
+          </div>
+        </div>
+        <div class="stat-card"><span class="label">Current streak</span><span class="value" data-metric="current_streak">0</span><span class="sub">consecutive wins</span></div>
+        <div class="stat-card"><span class="label">Best streak</span><span class="value" data-metric="best_streak">0</span></div>
+        <div class="stat-card"><span class="label">Avg attempts</span><span class="value" data-metric="avg_guesses">0</span><span class="sub">per win</span></div>
+        <div class="stat-card"><span class="label">Words mastered</span><span class="value" data-metric="mastered">0</span><span class="sub">solid ≥3× solved</span></div>
+      </div>
+
+      <div class="section-title">Attempts distribution — by word length</div>
+      <div class="distribution">
+        <div class="dist-grid" id="dist-grid"></div>
+      </div>
+
+      <div class="section-title">Language split</div>
+      <div class="language-split" id="language-split"></div>
+
+      <div class="section-title">Vocabulary</div>
+      <div class="tables">
+        <div class="word-table"><h4>Mastered</h4><div id="tbl-mastered"></div></div>
+        <div class="word-table"><h4>Known</h4><div id="tbl-known"></div></div>
+        <div class="word-table"><h4>Struggling</h4><div id="tbl-struggling"></div></div>
+      </div>
+
+      <div class="section-title">Recent games</div>
+      <div class="timeline" id="timeline"></div>
+    </section>
+  </div>
+
+  <script type="module" src="/js/profile.js"></script>
+</body>
+</html>

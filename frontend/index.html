@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Oflaz Wordle</title>
+  <link rel="icon" type="image/svg+xml" href="/assets/icons/favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&family=Space+Grotesk:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/base.css">
+  <link rel="stylesheet" href="/css/motion.css">
+  <link rel="stylesheet" href="/css/welcome.css">
+</head>
+<body>
+  <canvas id="pixel-bg"></canvas>
+  <main class="welcome-shell">
+    <section class="welcome-card" role="form">
+      <header class="welcome-header">
+        <h1 class="wordmark">Oflaz Wordle</h1>
+        <p class="subtitle">Train your brain in English, Turkish, and German.</p>
+      </header>
+
+      <div class="quick-start" role="group" aria-label="Start a game">
+        <div class="segmented" id="language-picker" role="tablist" aria-label="Language">
+          <button data-value="en" class="is-active">EN</button>
+          <button data-value="tr">TR</button>
+          <button data-value="de">DE</button>
+        </div>
+        <button id="start-btn" class="btn btn-primary">Start Game →</button>
+      </div>
+
+      <details class="advanced-options">
+        <summary>Customize</summary>
+        <div class="stack-lg">
+          <div>
+            <div class="field-label">Difficulty</div>
+            <div class="segmented" id="difficulty-picker" role="tablist">
+              <button data-value="chill" title="Extra attempt, common words">Chill</button>
+              <button data-value="classic" class="is-active" title="Standard Wordle">Classic</button>
+              <button data-value="scholar" title="Rarer words, no help until turn 3">Scholar</button>
+            </div>
+          </div>
+
+          <div>
+            <div class="field-label">Word length</div>
+            <div class="segmented length-picker" id="length-picker" role="tablist" aria-label="Word length">
+              <button data-value="random" class="is-active">Mix</button>
+              <button data-value="5">5</button>
+              <button data-value="6">6</button>
+              <button data-value="7">7</button>
+              <button data-value="8">8</button>
+              <button data-value="9">9</button>
+              <button data-value="10">10</button>
+            </div>
+          </div>
+
+          <div>
+            <div class="field-label">Character</div>
+            <div class="character-row">
+              <div class="character-tile is-active" data-character="default" tabindex="0">
+                <div class="avatar-shell" data-avatar='{"base":"pixel-human","hair":"short-black","accessory":"badge-o","shirt":"midnight","aura":"green-glow","name":"Oflaz"}'></div>
+                <div>
+                  <div class="character-title">Default Oflaz</div>
+                  <div class="character-sub">Economics major, glowing O badge, calm.</div>
+                </div>
+              </div>
+              <div class="character-tile" data-character="custom" tabindex="0">
+                <div class="avatar-shell" id="custom-avatar-preview" data-avatar='{"base":"pixel-human","hair":"short-brown","accessory":"glasses","shirt":"cyan","aura":"cyan-glow","name":"You"}'></div>
+                <div>
+                  <div class="character-title">Create your own</div>
+                  <div class="character-sub">Name, hair, accessory, colors, aura.</div>
+                </div>
+              </div>
+            </div>
+
+            <div id="custom-editor" class="hidden">
+              <div class="editor-grid">
+                <label>
+                  <span>Name</span>
+                  <input type="text" id="custom-name" maxlength="24" placeholder="e.g. Çağan">
+                </label>
+                <label>
+                  <span>Hair</span>
+                  <select id="custom-hair">
+                    <option value="short-black">short black</option>
+                    <option value="short-brown">short brown</option>
+                    <option value="long-blond">long blond</option>
+                    <option value="curly-red">curly red</option>
+                    <option value="buzz">buzz</option>
+                    <option value="none">none</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Accessory</span>
+                  <select id="custom-accessory">
+                    <option value="badge-o">O badge</option>
+                    <option value="glasses">glasses</option>
+                    <option value="crown">crown</option>
+                    <option value="headphones">headphones</option>
+                    <option value="scarf">scarf</option>
+                    <option value="calculator">calculator</option>
+                    <option value="book">book</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Shirt</span>
+                  <div class="swatch-row" id="custom-shirt">
+                    <button class="swatch is-active" data-shirt="midnight" style="background:#171C2B"></button>
+                    <button class="swatch" data-shirt="cyan" style="background:#62E6FF"></button>
+                    <button class="swatch" data-shirt="pink" style="background:#FF5DA2"></button>
+                    <button class="swatch" data-shirt="purple" style="background:#8D7CFF"></button>
+                    <button class="swatch" data-shirt="green" style="background:#3CCB7F"></button>
+                    <button class="swatch" data-shirt="yellow" style="background:#F4C95D"></button>
+                  </div>
+                </label>
+                <label>
+                  <span>Aura</span>
+                  <div class="swatch-row" id="custom-aura">
+                    <button class="swatch is-active" data-aura="green-glow" style="background:#3CCB7F"></button>
+                    <button class="swatch" data-aura="cyan-glow" style="background:#62E6FF"></button>
+                    <button class="swatch" data-aura="pink-glow" style="background:#FF5DA2"></button>
+                    <button class="swatch" data-aura="purple-glow" style="background:#8D7CFF"></button>
+                    <button class="swatch" data-aura="none" style="background:#3A4052"></button>
+                  </div>
+                </label>
+                <label>
+                  <span>Preview</span>
+                  <div class="avatar-preview"><div class="avatar-shell" id="editor-preview"></div></div>
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+      </details>
+
+      <div class="welcome-footer">
+        <a href="/profile" class="quiet-link">View profile →</a>
+      </div>
+    </section>
+  </main>
+
+  <script type="module" src="/js/pixel-background.js"></script>
+  <script type="module" src="/js/welcome.js"></script>
+</body>
+</html>

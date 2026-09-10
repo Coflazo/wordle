@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" shape-rendering="crispEdges">
+  <rect width="32" height="32" fill="#090B12"/>
+  <!-- three Wordle tiles: green, yellow, gray -->
+  <rect x="3" y="10" width="8" height="12" fill="#3CCB7F" rx="1"/>
+  <rect x="12" y="10" width="8" height="12" fill="#F4C95D" rx="1"/>
+  <rect x="21" y="10" width="8" height="12" fill="#3A4052" rx="1"/>
+  <!-- letter O outline centered -->
+  <text x="7" y="21" font-family="ui-monospace, monospace" font-size="10" font-weight="800" fill="#062015" text-anchor="middle">O</text>
+  <text x="16" y="21" font-family="ui-monospace, monospace" font-size="10" font-weight="800" fill="#2b1e00" text-anchor="middle">F</text>
+  <text x="25" y="21" font-family="ui-monospace, monospace" font-size="10" font-weight="800" fill="#F4F7FB" text-anchor="middle">L</text>
+</svg>
